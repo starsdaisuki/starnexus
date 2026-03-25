@@ -1,30 +1,37 @@
 # StarNexus Deployment Guide
 
-Complete step-by-step instructions for deploying StarNexus from scratch.
+Deploy the full StarNexus monitoring system from scratch. This guide matches the actual running configuration.
 
 ---
 
-## 1. Build Binaries
+## Prerequisites
 
-On your Mac (or any machine with Go installed):
+- macOS or Linux with Go 1.21+ installed (for building)
+- One primary VPS (runs server + agent + bot)
+- One or more additional VPS (runs agent only)
+- A Telegram bot token (see Section 3)
+- SSH access to all VPS as root
+
+---
+
+## 1. Build
+
+On your local machine:
 
 ```bash
 git clone https://github.com/starsdaisuki/starnexus.git
 cd starnexus
 
-# Build all three binaries for Linux x86_64
+# Build all three for Linux x86_64 (static, no CGO)
 cd server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-server && cd ..
-cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-agent && cd ..
-cd bot && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-bot && cd ..
+cd agent  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-agent  && cd ..
+cd bot    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-bot    && cd ..
 
-# Verify
 ls -lh bin/
 # starnexus-server  ~15 MB
 # starnexus-agent   ~10 MB
 # starnexus-bot     ~9 MB
 ```
-
-> **Note:** If `make build-all` fails with an Xcode license error on macOS, use the individual `go build` commands above instead.
 
 ---
 
@@ -33,147 +40,169 @@ ls -lh bin/
 ### 2.1 Upload Files
 
 ```bash
-SERVER=user@your-server-ip
+SERVER=root@YOUR_SERVER_IP
 
-# Create directory
 ssh $SERVER "mkdir -p ~/starnexus/{web,bin}"
 
-# Upload binaries
+# Binaries
 scp bin/starnexus-server bin/starnexus-agent bin/starnexus-bot $SERVER:~/starnexus/
+scp bin/starnexus-agent $SERVER:~/starnexus/bin/   # for download endpoint
 
-# Upload server files
+# Server files
 scp server/schema.sql $SERVER:~/starnexus/
 scp -r server/web/* $SERVER:~/starnexus/web/
 
-# Upload agent binary to bin/ (for the download endpoint)
-scp bin/starnexus-agent $SERVER:~/starnexus/bin/
+# GeoIP database (for connection visualization)
+ssh $SERVER "cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/"
 ```
 
-### 2.2 Download GeoIP Database
-
-On the server:
+### 2.2 Generate API Token
 
 ```bash
-cd ~/starnexus
-curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb
-cp GeoLite2-City.mmdb bin/GeoLite2-City.mmdb
+# Run on server or locally
+openssl rand -hex 32
+# Example output: REDACTED_API_TOKEN
 ```
+
+Use this token in ALL config files below. Every component must share the same token.
 
 ### 2.3 Server Config
 
-Create `~/starnexus/config.yaml`:
+Create `~/starnexus/config.yaml` on the server:
 
 ```yaml
-# Network
-port: 8900                        # HTTP port (do NOT expose publicly)
+port: 8900
+db_path: "./starnexus.db"
+api_token: "PASTE_TOKEN_HERE"
+web_dir: "./web"
+offline_threshold_seconds: 90
 
-# Database
-db_path: "./starnexus.db"         # SQLite database file path
+# Download endpoints (one-liner agent install uses these)
+agent_binary_path: "./bin/starnexus-agent"
+geoip_db_path: "./bin/GeoLite2-City.mmdb"
 
-# Auth
-api_token: "CHANGE_ME"            # Shared secret — agents and bot use this to authenticate
-                                  # Generate with: openssl rand -hex 32
+# Telegram alerts from analytics (anomaly detection, daily reports)
+# The server sends these directly — separate from the bot module
+bot_token: "PASTE_TELEGRAM_BOT_TOKEN"
+bot_chat_ids:
+  - PASTE_CHAT_ID_1
+  - PASTE_CHAT_ID_2
 
-# Frontend
-web_dir: "./web"                  # Path to frontend static files
-
-# Downloads (for one-liner install script)
-agent_binary_path: "./bin/starnexus-agent"   # Agent binary served at GET /download/agent
-geoip_db_path: "./bin/GeoLite2-City.mmdb"    # GeoIP DB served at GET /download/geoip
-
-# Monitoring
-offline_threshold_seconds: 90     # Mark node offline if no report for this many seconds
-
-# Telegram (for analytics alerts — anomaly detection, daily reports)
-bot_token: "BOT_TOKEN_HERE"       # Telegram bot token (see Section 3)
-bot_chat_ids:                     # Telegram chat IDs to receive alerts
-  - 123456789
-
-# AI Analysis (optional — daily report includes AI insights if set)
-mistral_api_key: ""               # Mistral API key from https://console.mistral.ai
+# AI daily report (optional, leave empty to disable)
+mistral_api_key: ""
 ```
 
-### 2.4 Agent Config (on the same VPS)
+**Every field explained:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `port` | Yes | HTTP listen port. Default 8900. Never expose publicly. |
+| `db_path` | Yes | SQLite database file. Created automatically on first run. |
+| `api_token` | Yes | Shared secret. Agents and bot authenticate with this. |
+| `web_dir` | Yes | Path to frontend HTML/JS/CSS files. |
+| `offline_threshold_seconds` | Yes | Seconds without a report before marking a node offline. |
+| `agent_binary_path` | No | Path to agent binary for `GET /download/agent`. |
+| `geoip_db_path` | No | Path to GeoLite2-City.mmdb for `GET /download/geoip`. |
+| `bot_token` | No | Telegram bot token. Analytics alerts are sent directly by the server. |
+| `bot_chat_ids` | No | List of Telegram chat IDs to receive analytics alerts. |
+| `mistral_api_key` | No | Mistral AI API key for daily AI analysis. Get from console.mistral.ai. |
+
+### 2.4 Agent Config (same VPS as server)
 
 Create `~/starnexus/agent-config.yaml`:
 
 ```yaml
-server_url: "http://127.0.0.1:8900"   # Localhost since agent runs on same VPS
-api_token: "CHANGE_ME"                 # Must match server's api_token
-node_id: "my-server"                   # Unique node identifier
-node_name: "My Server"                 # Display name on the map
-provider: "ProviderName"               # Hosting provider name
-public_ip: "1.2.3.4"                   # Public IP (shown in node popup)
-latitude: 35.6762                      # Map coordinates (0 = auto-detect)
+server_url: "http://127.0.0.1:8900"
+api_token: "PASTE_TOKEN_HERE"
+node_id: "my-server"
+node_name: "My Server Name"
+provider: "DMIT"
+public_ip: "YOUR_SERVER_IP"
+latitude: 35.6762
 longitude: 139.6503
-report_interval_seconds: 30            # How often to report metrics
+report_interval_seconds: 30
 
-# Link probing (TCP connect to other nodes)
 probe_targets:
-  - node_id: "other-node"             # Target node ID
-    host: "5.6.7.8"                   # Target IP
-    port: 22                           # TCP port to probe (SSH port works well)
+  - node_id: "other-node-id"
+    host: "OTHER_VPS_IP"
+    port: 22
 
-# Connection tracking (live visualization)
 geoip_db_path: "./GeoLite2-City.mmdb"
 connection_report_interval_seconds: 5
-
-# Port labels (optional — labels proxy ports on the map)
-port_labels:
-  443: "VLESS+WS (CDN)"
-  37981: "VLESS+Reality"
 ```
+
+**Every field explained:**
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `server_url` | Yes | — | Server API URL. Use `http://127.0.0.1:8900` when on same VPS. |
+| `api_token` | Yes | — | Must match server's `api_token`. |
+| `node_id` | Yes | — | Unique identifier (e.g. "tokyo-dmit"). Used in API and DB. |
+| `node_name` | Yes | — | Display name on the map (e.g. "Tokyo DMIT"). |
+| `provider` | No | — | Hosting provider name shown in popup. |
+| `public_ip` | No | auto | Public IP shown in node popup. Auto-detected if empty. |
+| `latitude` | No | 0 | Map latitude. Set to 0 for auto-detect via ip-api.com. |
+| `longitude` | No | 0 | Map longitude. Set to 0 for auto-detect. |
+| `report_interval_seconds` | No | 30 | Metrics report interval. |
+| `probe_targets` | No | [] | List of nodes to TCP-probe for link latency. |
+| `probe_targets[].node_id` | Yes | — | Target node's ID (must match their `node_id`). |
+| `probe_targets[].host` | Yes | — | Target IP address. |
+| `probe_targets[].port` | No | 22 | TCP port to connect to (SSH port works well). |
+| `geoip_db_path` | No | ./GeoLite2-City.mmdb | MaxMind GeoIP database for connection geolocation. |
+| `connection_report_interval_seconds` | No | 5 | Live connection report interval. |
+| `port_labels` | No | {} | Map of port → display name (e.g. `443: "VLESS+WS"`). |
+| `proxy_processes` | No | [xray, sing-box, x-ui, 3x-ui] | Process names to detect proxy ports. |
 
 ### 2.5 Bot Config
 
 Create `~/starnexus/bot-config.yaml`:
 
 ```yaml
-telegram_token: "BOT_TOKEN_HERE"       # Telegram bot token (see Section 3)
-chat_ids:                              # Chat IDs that can send commands and receive alerts
-  - 123456789
-  - 987654321
-server_url: "http://127.0.0.1:8900"   # Localhost since bot runs on same VPS
-api_token: "CHANGE_ME"                 # Must match server's api_token
-poll_interval_seconds: 30              # How often to check for status changes
-heartbeat_interval_seconds: 300        # Reverse heartbeat interval (5 min)
+telegram_token: "PASTE_TELEGRAM_BOT_TOKEN"
+chat_ids:
+  - PASTE_CHAT_ID_1
+  - PASTE_CHAT_ID_2
+server_url: "http://127.0.0.1:8900"
+api_token: "PASTE_TOKEN_HERE"
+poll_interval_seconds: 30
+heartbeat_interval_seconds: 300
 ```
 
-### 2.6 Firewall Rules
+**Every field explained:**
 
-**IMPORTANT:** Do NOT open port 8900 to the public. Only allow known VPS IPs.
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `telegram_token` | Yes | — | Bot token from @BotFather. |
+| `chat_ids` | Yes | — | List of Telegram user IDs. Only these users can send commands. Alerts go to all. |
+| `server_url` | Yes | — | Server API URL. Use localhost when on same VPS. |
+| `api_token` | Yes | — | Must match server's `api_token`. |
+| `poll_interval_seconds` | No | 30 | How often to check for node status changes. |
+| `heartbeat_interval_seconds` | No | 300 | Reverse heartbeat interval (alerts if server unreachable). |
+
+### 2.6 Firewall
+
+**Port 8900 must NOT be public.** Only allow known VPS IPs and localhost.
 
 ```bash
-# Allow localhost (for agent + bot on same machine)
-# If using iptables:
+# iptables (most VPS)
 iptables -A INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT
-
-# Allow other VPS IPs (one rule per VPS)
 iptables -A INPUT -p tcp -s OTHER_VPS_IP --dport 8900 -j ACCEPT
-
-# Allow ICMP from other VPS (for ping probing, if used)
 iptables -A INPUT -p icmp -s OTHER_VPS_IP -j ACCEPT
-
-# Block all other access to port 8900
 iptables -A INPUT -p tcp --dport 8900 -j DROP
 
-# Save rules (Debian/Ubuntu)
+# Save (Debian/Ubuntu)
 iptables-save > /etc/iptables.rules
-```
 
-If using ufw instead of iptables:
-
-```bash
+# Or with ufw:
 ufw allow from OTHER_VPS_IP to any port 8900
-# Do NOT run: ufw allow 8900  (this opens it to everyone)
+# NEVER run: ufw allow 8900
 ```
 
 ### 2.7 Systemd Services
 
-Create three service files:
+Create three files on the server:
 
-**`/etc/systemd/system/starnexus-server.service`**
-
+**/etc/systemd/system/starnexus-server.service**
 ```ini
 [Unit]
 Description=StarNexus Server
@@ -191,8 +220,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-**`/etc/systemd/system/starnexus-agent.service`**
-
+**/etc/systemd/system/starnexus-agent.service**
 ```ini
 [Unit]
 Description=StarNexus Agent
@@ -210,8 +238,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-**`/etc/systemd/system/starnexus-bot.service`**
-
+**/etc/systemd/system/starnexus-bot.service**
 ```ini
 [Unit]
 Description=StarNexus Telegram Bot
@@ -229,7 +256,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-Start and enable all three:
+Start everything:
 
 ```bash
 systemctl daemon-reload
@@ -245,80 +272,78 @@ curl -s http://localhost:8900/api/status
 
 ---
 
-## 3. Telegram Bot Setup
+## 3. Telegram Bot
 
-### 3.1 Create Bot
+### Create the bot
 
-1. Open Telegram, search for **@BotFather**
-2. Send `/newbot`
-3. Choose a name (e.g. "StarNexus Monitor")
-4. Choose a username (e.g. "starnexus_monitor_bot")
-5. Copy the token (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+1. Open Telegram, message **@BotFather**
+2. Send `/newbot`, pick a name and username
+3. Copy the token: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`
 
-### 3.2 Get Your Chat ID
+### Get your chat ID
 
-1. Open Telegram, search for **@userinfobot**
-2. Send `/start`
-3. It replies with your user ID (a number like `REDACTED_CHAT_ID_1`)
-4. To add another user: have them message the bot, then add their chat ID to the `chat_ids` list
+1. Message **@userinfobot** on Telegram
+2. Send `/start` — it replies with your numeric user ID
+3. Add each user's ID to the `chat_ids` list in bot and server configs
 
-### 3.3 Test
+### Test
 
-After the bot is running, send `/status` to your bot in Telegram. It should reply with a node summary.
-
-Send `/report` for an on-demand daily report with AI analysis (requires `mistral_api_key` in server config).
+After services are running, send `/status` to your bot. It should reply with a node summary. Send `/report` for a daily report with AI analysis (requires `mistral_api_key`).
 
 ---
 
-## 4. Agent on Other VPS (One-Liner Install)
+## 4. Agent on Additional VPS (One-Liner)
 
-On any new VPS you want to monitor:
+**First:** whitelist the new VPS IP in the server's firewall (Section 2.6).
+
+Then on the new VPS:
 
 ```bash
 curl -sSL http://SERVER_IP:8900/install.sh | bash -s -- \
   --server http://SERVER_IP:8900 \
   --token YOUR_API_TOKEN \
   --node-id "new-node" \
-  --node-name "New Node" \
+  --node-name "New Node Name" \
   --provider "ProviderName"
 ```
 
-This automatically:
-1. Downloads the agent binary from the server
-2. Downloads GeoLite2-City.mmdb for connection tracking
-3. Creates `config.yaml` (lat/lng auto-detected via ip-api.com)
-4. Creates and starts a systemd service
-
-**Before running:** Make sure the new VPS's IP is allowed in the server's firewall (see Section 2.6).
+This downloads the agent binary + GeoIP DB, writes config (lat/lng auto-detected), creates systemd service, and starts it.
 
 ### Verify
 
 ```bash
 systemctl is-active starnexus-agent
-journalctl -u starnexus-agent -n 20
-
-# On the server, check the node appeared:
-curl -s http://localhost:8900/api/nodes
+journalctl -u starnexus-agent -n 10
 ```
 
 ### Add Link Probing
 
-After install, edit `~/starnexus/config.yaml` on the new VPS to add probe targets:
+Edit `~/starnexus/config.yaml` on the new VPS:
 
 ```yaml
 probe_targets:
-  - node_id: "my-server"
+  - node_id: "server-node-id"
     host: "SERVER_IP"
-    port: 22        # SSH port of the target
+    port: 22    # SSH port of target (TCP connect, not ICMP)
 ```
 
-Then restart: `systemctl restart starnexus-agent`
+Restart: `systemctl restart starnexus-agent`
+
+Also add a reverse probe on the server's `agent-config.yaml` pointing back to this new VPS.
+
+### Add Port Labels (optional)
+
+```yaml
+port_labels:
+  443: "VLESS+WS (CDN)"
+  37981: "Reality"
+```
 
 ---
 
-## 5. Heartbeat Watchdog (Secondary VPS)
+## 5. Heartbeat Watchdog
 
-Deploy on a VPS **other than** the server to detect if the server goes down.
+Deploy on a VPS **different from** the server. This detects if the server itself goes down — the bot can't alert if the server hosting it is dead.
 
 Create `/root/starnexus/heartbeat.sh`:
 
@@ -328,7 +353,7 @@ set -uo pipefail
 
 TARGET_URL="http://SERVER_IP:8900/api/status"
 FAIL_FILE="/tmp/starnexus-heartbeat-fails"
-BOT_TOKEN="YOUR_BOT_TOKEN"
+BOT_TOKEN="PASTE_TELEGRAM_BOT_TOKEN"
 CHAT_IDS="CHAT_ID_1 CHAT_ID_2"
 
 send_telegram() {
@@ -355,8 +380,6 @@ else
 fi
 ```
 
-Set up:
-
 ```bash
 chmod +x /root/starnexus/heartbeat.sh
 
@@ -364,17 +387,18 @@ chmod +x /root/starnexus/heartbeat.sh
 /root/starnexus/heartbeat.sh && cat /tmp/starnexus-heartbeat-fails
 
 # Add cron (every 5 minutes)
-(crontab -l 2>/dev/null; echo "*/5 * * * * /root/starnexus/heartbeat.sh") | crontab -
+(crontab -l 2>/dev/null | grep -v starnexus-heartbeat; \
+ echo "*/5 * * * * /root/starnexus/heartbeat.sh # starnexus-heartbeat") | crontab -
 ```
 
 ---
 
 ## 6. Accessing the Dashboard
 
-The web UI is **not** exposed publicly. Access via SSH tunnel:
+Port 8900 is not public. Use an SSH tunnel:
 
 ```bash
-ssh -L 8900:localhost:8900 user@SERVER_IP
+ssh -L 8900:localhost:8900 root@SERVER_IP
 ```
 
 Then open **http://localhost:8900** in your browser.
@@ -390,7 +414,7 @@ Host starnexus
     LocalForward 8900 localhost:8900
 ```
 
-Then just: `ssh starnexus` and open http://localhost:8900.
+Then: `ssh starnexus` → open http://localhost:8900
 
 ---
 
@@ -398,25 +422,22 @@ Then just: `ssh starnexus` and open http://localhost:8900.
 
 ### Update Binaries
 
-On your Mac:
-
 ```bash
-cd starnexus
+# Rebuild locally
+cd starnexus/server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-server && cd ..
+cd agent  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-agent  && cd ..
+cd bot    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-bot    && cd ..
 
-# Rebuild
-cd server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-server && cd ..
-cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-agent && cd ..
-cd bot && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-bot && cd ..
-
-# Deploy to server
+# Deploy to server (must stop first — can't overwrite running binaries)
 ssh SERVER "systemctl stop starnexus-server starnexus-agent starnexus-bot"
 scp bin/starnexus-server bin/starnexus-agent bin/starnexus-bot SERVER:~/starnexus/
+scp bin/starnexus-agent SERVER:~/starnexus/bin/  # update download copy too
 ssh SERVER "systemctl start starnexus-server && sleep 2 && systemctl start starnexus-agent && systemctl start starnexus-bot"
 
-# Update agent on other VPSes
-ssh OTHER_VPS "systemctl stop starnexus-agent"
-scp bin/starnexus-agent OTHER_VPS:~/starnexus/
-ssh OTHER_VPS "systemctl start starnexus-agent"
+# Update agent on other VPS
+ssh OTHER "systemctl stop starnexus-agent"
+scp bin/starnexus-agent OTHER:~/starnexus/
+ssh OTHER "systemctl start starnexus-agent"
 ```
 
 ### Backup Database
@@ -425,55 +446,56 @@ ssh OTHER_VPS "systemctl start starnexus-agent"
 scp SERVER:~/starnexus/starnexus.db ./backup-$(date +%Y%m%d).db
 ```
 
-### Add a New VPS Node
+### Add a New Node
 
-1. Whitelist the new VPS IP in the server's firewall
-2. Run the one-liner install on the new VPS (see Section 4)
-3. Optionally add probe targets to the new node's config
-4. Optionally add the new VPS's IP as a probe target on existing nodes
-
-### Check Logs
-
-```bash
-# Server
-journalctl -u starnexus-server -f
-
-# Agent
-journalctl -u starnexus-agent -f
-
-# Bot
-journalctl -u starnexus-bot -f
-
-# Last 50 lines
-journalctl -u starnexus-server --no-pager -n 50
-```
+1. Whitelist new VPS IP in server firewall
+2. Run the one-liner install (Section 4)
+3. Add probe targets on both sides
+4. Restart agents on both sides
 
 ### Remove a Node
 
 ```bash
-# On the VPS being removed
+# On the VPS
 systemctl disable --now starnexus-agent
 
-# On the server — delete from database
-TOKEN="your-api-token"
+# On the server — remove from database
 curl -X DELETE http://localhost:8900/api/nodes/NODE_ID \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Check Logs
+
+```bash
+journalctl -u starnexus-server -f     # server log (live)
+journalctl -u starnexus-agent -f      # agent log (live)
+journalctl -u starnexus-bot -f        # bot log (live)
+journalctl -u starnexus-agent -n 50   # last 50 lines
+```
+
+### Update GeoIP Database
+
+The database is updated periodically by the upstream provider. Re-download:
+
+```bash
+ssh SERVER "cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/"
+systemctl restart starnexus-agent  # on each VPS with the agent
 ```
 
 ---
 
-## Automatic Features (no manual intervention needed)
+## Automatic Features Reference
 
-| Feature | Schedule | What it does |
-|---------|----------|--------------|
-| Metrics collection | Every 30s | Agent collects CPU, memory, disk, network, load, connections, uptime |
-| Connection tracking | Every 5s | Agent detects proxy ports, collects active connections with GeoIP |
-| Link probing | Every 30s | Agent TCP-pings other nodes, measures latency |
+| Feature | Schedule | Description |
+|---------|----------|-------------|
+| Metrics collection | Every 30s | CPU, memory, disk, network, load, connections, uptime |
+| Connection tracking | Every 5s | Detects proxy ports, collects per-IP bytes with GeoIP |
+| Link probing | Every 30s | TCP connect to other nodes, measures handshake latency |
 | Offline detection | Every 30s | Server marks nodes offline if no report within threshold |
-| Anomaly detection | Every 5 min | Server Z-score analysis on CPU/memory/bandwidth (24h window) |
-| Downsampling | Daily 03:00 UTC+8 | Raw → hourly (7-30d) → daily (30d+), purge old data |
-| Node scoring | Daily 03:00 UTC+8 | Availability + latency + stability → composite score |
-| AI daily report | Daily 09:00 UTC+8 | Metrics summary + Mistral AI analysis → Telegram |
-| Heartbeat watchdog | Every 5 min | Secondary VPS checks server, alerts on 3 failures |
+| Anomaly detection | Every 5 min | Z-score on CPU/memory/bandwidth (24h window, |Z|>3 alerts) |
+| Downsampling | Daily 03:00 UTC+8 | raw→hourly (7-30d), hourly→daily (30d+), purge old data |
+| Node scoring | Daily 03:00 UTC+8 | Availability 40% + latency 30% + stability 30% |
+| AI daily report | Daily 09:00 UTC+8 | Metrics + AI analysis via Mistral → Telegram |
 | Bot polling | Every 30s | Detects status changes, sends Telegram alerts |
-| Reverse heartbeat | Every 5 min | Bot pings server, alerts if unreachable |
+| Reverse heartbeat | Every 5 min | Bot pings server, alerts after 3 consecutive failures |
+| Cron heartbeat | Every 5 min | Independent watchdog on secondary VPS |
