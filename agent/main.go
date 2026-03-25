@@ -76,7 +76,7 @@ func main() {
 					if len(conns) > 0 {
 						// Sort by rate descending, keep top 20
 						sort.Slice(conns, func(i, j int) bool {
-							return conns[i].RateDown+conns[i].RateUp > conns[j].RateDown+conns[j].RateUp
+							return conns[i].Rate > conns[j].Rate
 						})
 						if len(conns) > 20 {
 							conns = conns[:20]

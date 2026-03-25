@@ -16,10 +16,8 @@ type ConnInfo struct {
 	SrcCity    string  `json:"src_city"`
 	LocalPort  int     `json:"local_port"`
 	Protocol   string  `json:"protocol"`
-	BytesUp    uint64  `json:"bytes_up"`
-	BytesDown  uint64  `json:"bytes_down"`
-	RateUp     float64 `json:"rate_up"`
-	RateDown   float64 `json:"rate_down"`
+	Rate       float64 `json:"rate"`
+	TotalBytes uint64  `json:"total_bytes"`
 }
 
 type connReport struct {
@@ -53,7 +51,7 @@ func (cs *ConnStore) GetAll() map[string][]ConnInfo {
 		conns := make([]ConnInfo, len(v))
 		copy(conns, v)
 		sort.Slice(conns, func(i, j int) bool {
-			return conns[i].RateDown+conns[i].RateUp > conns[j].RateDown+conns[j].RateUp
+			return conns[i].Rate > conns[j].Rate
 		})
 		if len(conns) > 20 {
 			conns = conns[:20]

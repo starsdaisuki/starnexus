@@ -9,6 +9,7 @@ import (
 type ProbeTarget struct {
 	NodeID string `yaml:"node_id"`
 	Host   string `yaml:"host"`
+	Port   int    `yaml:"port"` // TCP port to probe (0 = ICMP ping fallback)
 }
 
 type Config struct {

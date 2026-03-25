@@ -14,7 +14,7 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-// ConnInfo represents a single active connection with geo + rate data.
+// ConnInfo represents an aggregated connection per source IP.
 type ConnInfo struct {
 	SrcIP      string  `json:"src_ip"`
 	SrcLat     float64 `json:"src_lat"`
@@ -23,40 +23,39 @@ type ConnInfo struct {
 	SrcCity    string  `json:"src_city"`
 	LocalPort  int     `json:"local_port"`
 	Protocol   string  `json:"protocol"`
-	BytesUp    uint64  `json:"bytes_up"`
-	BytesDown  uint64  `json:"bytes_down"`
-	RateUp     float64 `json:"rate_up"`
-	RateDown   float64 `json:"rate_down"`
+	Rate       float64 `json:"rate"`        // bytes/sec current speed
+	TotalBytes uint64  `json:"total_bytes"` // cumulative since first seen
 }
 
-// ConnCollector collects active proxy connections with geo and rate data.
+// ConnCollector collects active proxy connections with per-IP rate tracking.
 type ConnCollector struct {
 	geoReader      *geoip2.Reader
 	portLabels     map[int]string
 	proxyProcesses []string
 	interval       time.Duration
 
-	mu           sync.RWMutex
-	listenPorts  []int
-	prevBytes    map[string]prevConn // key: "srcIP:srcPort-localPort"
-	prevTime     time.Time
-}
+	mu          sync.RWMutex
+	listenPorts []int
 
-type prevConn struct {
-	bytesUp   uint64
-	bytesDown uint64
+	// Per-TCP-connection: last known bytes. key = "srcIP:srcPort-localPort"
+	prevConnBytes map[string]uint64
+	// Per-IP monotonic total. key = "srcIP-localPort"
+	ipTotal map[string]uint64
+	ipRate  map[string]float64
+	prevTime time.Time
 }
 
 var bytesRe = regexp.MustCompile(`bytes_sent:(\d+)`)
 var bytesRecvRe = regexp.MustCompile(`bytes_received:(\d+)`)
 
-// NewConnCollector creates a connection collector with GeoIP and port labels.
 func NewConnCollector(geoDBPath string, portLabels map[int]string, proxyProcesses []string, intervalSec int) *ConnCollector {
 	cc := &ConnCollector{
 		portLabels:     portLabels,
 		proxyProcesses: proxyProcesses,
 		interval:       time.Duration(intervalSec) * time.Second,
-		prevBytes:      make(map[string]prevConn),
+		prevConnBytes:  make(map[string]uint64),
+		ipTotal:        make(map[string]uint64),
+		ipRate:         make(map[string]float64),
 	}
 
 	if geoDBPath != "" {
@@ -69,9 +68,7 @@ func NewConnCollector(geoDBPath string, portLabels map[int]string, proxyProcesse
 		}
 	}
 
-	// Initial port scan
 	cc.scanPorts()
-
 	return cc
 }
 
@@ -81,11 +78,9 @@ func (cc *ConnCollector) Close() {
 	}
 }
 
-// StartPortScanner re-scans listening ports every 5 minutes.
 func (cc *ConnCollector) StartPortScanner(stop <-chan struct{}) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ticker.C:
@@ -96,11 +91,7 @@ func (cc *ConnCollector) StartPortScanner(stop <-chan struct{}) {
 	}
 }
 
-// Collect returns current active connections with geo and rate data.
-// Multiple TCP connections from the same source IP are aggregated into one entry.
-// Rate semantics from the USER's perspective:
-//   RateUp   = user uploading   = server bytes_received
-//   RateDown = user downloading = server bytes_sent
+// Collect returns per-IP aggregated connections with rate and cumulative bytes.
 func (cc *ConnCollector) Collect() []ConnInfo {
 	cc.mu.RLock()
 	ports := cc.listenPorts
@@ -116,80 +107,78 @@ func (cc *ConnCollector) Collect() []ConnInfo {
 		elapsed = float64(cc.interval.Seconds())
 	}
 
-	// Phase 1: collect all raw connections, compute per-connection rates
-	newPrev := make(map[string]prevConn)
-	type perIPData struct {
-		srcIP              string
-		port               int
-		totalBytesSent     uint64 // server sent = user download
-		totalBytesRecv     uint64 // server recv = user upload
-		totalRateSent      float64
-		totalRateRecv      float64
+	// Step 1: Read all active connections
+	curConnBytes := make(map[string]uint64)
+	type ipInfo struct {
+		srcIP string
+		port  int
 	}
-
-	// Aggregate by "srcIP:port"
-	aggMap := make(map[string]*perIPData)
+	ipInfos := make(map[string]*ipInfo) // ipKey → info
+	ipDeltas := make(map[string]uint64) // ipKey → sum of deltas this cycle
 
 	for _, port := range ports {
 		raw := cc.getConnectionsForPort(port)
 		for _, r := range raw {
 			connKey := fmt.Sprintf("%s:%d-%d", r.srcIP, r.srcPort, port)
+			ipKey := fmt.Sprintf("%s-%d", r.srcIP, port)
+			curBytes := r.bytesSent + r.bytesRecv
 
-			// Per-connection rate from delta
-			var rateSent, rateRecv float64
-			if prev, ok := cc.prevBytes[connKey]; ok {
-				if r.bytesSent >= prev.bytesUp {
-					rateSent = float64(r.bytesSent-prev.bytesUp) / elapsed
-				}
-				if r.bytesRecv >= prev.bytesDown {
-					rateRecv = float64(r.bytesRecv-prev.bytesDown) / elapsed
-				}
+			curConnBytes[connKey] = curBytes
+
+			if _, ok := ipInfos[ipKey]; !ok {
+				ipInfos[ipKey] = &ipInfo{srcIP: r.srcIP, port: port}
 			}
 
-			newPrev[connKey] = prevConn{bytesUp: r.bytesSent, bytesDown: r.bytesRecv}
-
-			// Aggregate by srcIP + port
-			aggKey := fmt.Sprintf("%s-%d", r.srcIP, port)
-			agg, ok := aggMap[aggKey]
-			if !ok {
-				agg = &perIPData{srcIP: r.srcIP, port: port}
-				aggMap[aggKey] = agg
+			// Delta = new bytes since last sample for THIS connection
+			prevBytes, seen := cc.prevConnBytes[connKey]
+			if seen && curBytes >= prevBytes {
+				ipDeltas[ipKey] += curBytes - prevBytes
+			} else if !seen {
+				// New connection: count all its current bytes as new
+				ipDeltas[ipKey] += curBytes
 			}
-			agg.totalBytesSent += r.bytesSent
-			agg.totalBytesRecv += r.bytesRecv
-			agg.totalRateSent += rateSent
-			agg.totalRateRecv += rateRecv
+			// If curBytes < prevBytes (counter reset), skip — shouldn't happen with TCP
 		}
 	}
 
-	cc.prevBytes = newPrev
-	cc.prevTime = now
+	// Step 2: Add deltas to monotonic IP totals, compute rate
+	for ipKey, delta := range ipDeltas {
+		prev := cc.ipTotal[ipKey]
+		cc.ipTotal[ipKey] = prev + delta
+		if elapsed > 0 {
+			cc.ipRate[ipKey] = float64(delta) / elapsed
+		}
+	}
 
-	// Phase 2: build ConnInfo list from aggregated data
+	// Zero out rate for IPs that had no delta this cycle but still have active connections
+	for ipKey := range ipInfos {
+		if _, hasDelta := ipDeltas[ipKey]; !hasDelta {
+			cc.ipRate[ipKey] = 0
+		}
+	}
+
+	// Step 3: Build result
 	var conns []ConnInfo
-	for _, agg := range aggMap {
-		lat, lng, country, city := cc.lookupGeo(agg.srcIP)
+	for ipKey, info := range ipInfos {
+		total := cc.ipTotal[ipKey]
+		rate := cc.ipRate[ipKey]
 
-		protocol := fmt.Sprintf("port-%d", agg.port)
-		if label, ok := cc.portLabels[agg.port]; ok {
+		lat, lng, country, city := cc.lookupGeo(info.srcIP)
+		protocol := fmt.Sprintf("port-%d", info.port)
+		if label, ok := cc.portLabels[info.port]; ok {
 			protocol = label
 		}
 
 		conns = append(conns, ConnInfo{
-			SrcIP:      agg.srcIP,
-			SrcLat:     lat,
-			SrcLng:     lng,
-			SrcCountry: country,
-			SrcCity:    city,
-			LocalPort:  agg.port,
-			Protocol:   protocol,
-			BytesUp:    agg.totalBytesRecv,  // user upload = server recv
-			BytesDown:  agg.totalBytesSent,  // user download = server sent
-			RateUp:     agg.totalRateRecv,   // user upload rate
-			RateDown:   agg.totalRateSent,   // user download rate
+			SrcIP: info.srcIP, SrcLat: lat, SrcLng: lng,
+			SrcCountry: country, SrcCity: city,
+			LocalPort: info.port, Protocol: protocol,
+			Rate: rate, TotalBytes: total,
 		})
 	}
 
+	cc.prevConnBytes = curConnBytes
+	cc.prevTime = now
 	return conns
 }
 
@@ -211,7 +200,6 @@ func (cc *ConnCollector) scanPorts() {
 			continue
 		}
 
-		// Check if process matches any proxy process name
 		matchesProxy := false
 		lower := strings.ToLower(line)
 		for _, proc := range cc.proxyProcesses {
@@ -224,13 +212,11 @@ func (cc *ConnCollector) scanPorts() {
 			continue
 		}
 
-		// Extract port from local address field
 		fields := strings.Fields(line)
 		if len(fields) < 4 {
 			continue
 		}
 		_, port := parseAddr(fields[3])
-		// parseAddr may fail on "0.0.0.0:443" — try LastIndex fallback
 		if port == 0 {
 			localAddr := fields[3]
 			idx := strings.LastIndex(localAddr, ":")
@@ -239,10 +225,7 @@ func (cc *ConnCollector) scanPorts() {
 			}
 		}
 		// port already parsed above
-		if err != nil || port == 0 {
-			continue
-		}
-		if !seen[port] {
+		if port > 0 && !seen[port] {
 			seen[port] = true
 			ports = append(ports, port)
 		}
@@ -267,7 +250,6 @@ type rawConn struct {
 }
 
 func (cc *ConnCollector) getConnectionsForPort(port int) []rawConn {
-	// Use ss -tni to get connections with TCP info (byte counters)
 	out, err := exec.Command("ss", "-tni", fmt.Sprintf("sport = :%d", port)).CombinedOutput()
 	if err != nil {
 		return nil
@@ -287,19 +269,15 @@ func (cc *ConnCollector) getConnectionsForPort(port int) []rawConn {
 			continue
 		}
 
-		// Parse peer address (field 4)
-		// Handles: "1.2.3.4:56789" and "[::ffff:1.2.3.4]:56789"
 		srcIP, srcPort := parseAddr(fields[4])
 		if srcIP == "" {
 			continue
 		}
 
-		// Skip private/loopback IPs
 		if isPrivateIP(srcIP) {
 			continue
 		}
 
-		// Next line should be TCP info
 		var bytesSent, bytesRecv uint64
 		if i+1 < len(lines) {
 			infoLine := lines[i+1]
@@ -328,17 +306,14 @@ func (cc *ConnCollector) lookupGeo(ipStr string) (lat, lng float64, country, cit
 	if cc.geoReader == nil {
 		return
 	}
-
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
 		return
 	}
-
 	record, err := cc.geoReader.City(ip)
 	if err != nil {
 		return
 	}
-
 	lat = record.Location.Latitude
 	lng = record.Location.Longitude
 	country = record.Country.Names["en"]
@@ -346,9 +321,9 @@ func (cc *ConnCollector) lookupGeo(ipStr string) (lat, lng float64, country, cit
 	return
 }
 
-// parseAddr parses "1.2.3.4:56789" or "[::ffff:1.2.3.4]:56789" into IP and port.
+// --- Helpers ---
+
 func parseAddr(addr string) (string, int) {
-	// Bracketed form: [::ffff:1.2.3.4]:port or [::1]:port
 	if strings.HasPrefix(addr, "[") {
 		closeBracket := strings.Index(addr, "]")
 		if closeBracket < 0 {
@@ -360,15 +335,11 @@ func parseAddr(addr string) (string, int) {
 			portStr = addr[closeBracket+2:]
 		}
 		port, _ := strconv.Atoi(portStr)
-
-		// Extract IPv4 from ::ffff:x.x.x.x mapped address
 		if strings.HasPrefix(ip, "::ffff:") {
 			ip = ip[7:]
 		}
 		return ip, port
 	}
-
-	// Plain form: 1.2.3.4:56789
 	idx := strings.LastIndex(addr, ":")
 	if idx < 0 {
 		return "", 0
@@ -382,8 +353,5 @@ func isPrivateIP(ipStr string) bool {
 	if ip == nil {
 		return true
 	}
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
-		return true
-	}
-	return false
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }

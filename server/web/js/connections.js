@@ -1,5 +1,5 @@
 /**
- * connections.js — Live connection visualization: animated lines + source markers
+ * connections.js — Live connection visualization with CDN aggregation
  */
 
 const StarConns = (() => {
@@ -13,40 +13,40 @@ const StarConns = (() => {
     '#ff6644', '#aa66ff', '#00ffaa', '#ff9900',
   ]
   const portColorMap = {}
-  let colorIndex = 0
+  let colorIdx = 0
+
+  // Cloudflare IPv4 CIDR ranges (from cloudflare.com/ips-v4)
+  const CF_CIDRS = [
+    [ipToNum('173.245.48.0'), 20],
+    [ipToNum('103.21.244.0'), 22],
+    [ipToNum('103.22.200.0'), 22],
+    [ipToNum('103.31.4.0'), 22],
+    [ipToNum('141.101.64.0'), 18],
+    [ipToNum('108.162.192.0'), 18],
+    [ipToNum('190.93.240.0'), 20],
+    [ipToNum('188.114.96.0'), 20],
+    [ipToNum('197.234.240.0'), 22],
+    [ipToNum('198.41.128.0'), 17],
+    [ipToNum('162.158.0.0'), 15],
+    [ipToNum('104.16.0.0'), 13],
+    [ipToNum('104.24.0.0'), 14],
+    [ipToNum('172.64.0.0'), 13],
+    [ipToNum('131.0.72.0'), 22],
+  ]
 
   function init(leafletMap) {
     map = leafletMap
     layerGroup = L.layerGroup().addTo(map)
   }
 
-  function setNodes(nodes) {
-    nodesCache = nodes
-  }
+  function setNodes(nodes) { nodesCache = nodes }
 
   function render(connData) {
-    // Nuclear cleanup: remove layer group AND scrub any orphaned DOM elements
-    const oldLabels = document.querySelectorAll('.sn-conn-label')
-    const oldSrcDots = document.querySelectorAll('.sn-conn-src')
     layerGroup.clearLayers()
-    oldLabels.forEach(el => el.remove())
-    oldSrcDots.forEach(el => el.remove())
-
     if (!visible || !connData) return
 
-    // Debug: log raw API data
-    let totalConns = 0
-    let withRate = 0
-    Object.values(connData).forEach(conns => {
-      conns.forEach(c => {
-        totalConns++
-        if ((c.rate_up || 0) + (c.rate_down || 0) > 50) withRate++
-      })
-    })
-    console.log('[StarConns] API data: ' + totalConns + ' connections, ' + withRate + ' with rate > 50 B/s')
-
-    const srcMarkers = {}
-    let labelCount = 0
+    // Flatten and group
+    const groups = {} // key → { conns: [], nodeId, node }
 
     Object.keys(connData).forEach(nodeId => {
       const node = nodesCache.find(n => n.id === nodeId)
@@ -56,132 +56,176 @@ const StarConns = (() => {
       conns.forEach(conn => {
         if (!conn.src_lat && !conn.src_lng) return
 
-        const color = getPortColor(conn.protocol)
-        const rateUp = conn.rate_up || 0
-        const rateDown = conn.rate_down || 0
-        const peakRate = Math.max(rateUp, rateDown)
-        const totalRate = rateUp + rateDown
-        const weight = rateToWeight(totalRate)
+        // Group key: CDN → "/16-nodeId", direct → "ip-nodeId"
+        const isCF = isCloudflare(conn.src_ip)
+        const gKey = isCF
+          ? subnet16(conn.src_ip) + '-' + nodeId
+          : conn.src_ip + '-' + nodeId
 
-        let tgtLng = node.longitude
-        const lngDiff = conn.src_lng - tgtLng
-        if (lngDiff > 180) tgtLng += 360
-        else if (lngDiff < -180) tgtLng -= 360
-
-        const latlngs = [[conn.src_lat, conn.src_lng], [node.latitude, tgtLng]]
-
-        // Invisible hitbox
-        const hitbox = L.polyline(latlngs, {
-          weight: Math.max(15, weight + 8),
-          opacity: 0,
-          interactive: true,
-        })
-        hitbox.bindTooltip(
-          '<div class="link-tooltip">' +
-          '<span class="label">IP:</span> <span class="value">' + esc(conn.src_ip) + '</span><br>' +
-          '<span class="label">Location:</span> <span class="value">' + esc(conn.src_city || '?') + ', ' + esc(conn.src_country || '?') + '</span><br>' +
-          '<span class="label">Protocol:</span> <span class="value">' + esc(conn.protocol) + '</span><br>' +
-          '<span class="label">Traffic:</span> <span class="value">' +
-            '\u2191' + mbps(rateUp) + ' \u2193' + mbps(rateDown) +
-          '</span></div>',
-          { sticky: true }
-        )
-        layerGroup.addLayer(hitbox)
-
-        // Visible line
-        const polyline = L.polyline(latlngs, {
-          color: color,
-          weight: weight,
-          opacity: 0.6,
-          dashArray: '4, 8',
-          interactive: false,
-        })
-        layerGroup.addLayer(polyline)
-        setTimeout(() => {
-          const el = polyline.getElement()
-          if (el) el.classList.add('conn-flow')
-        }, 0)
-
-        // Rate label — only for connections with actual measured rate
-        if (peakRate > 50 && totalRate > 50) {
-          const midLat = (conn.src_lat + node.latitude) / 2
-          const midLng = (conn.src_lng + tgtLng) / 2
-          layerGroup.addLayer(L.marker([midLat, midLng], {
-            icon: L.divIcon({
-              className: 'sn-conn-label',
-              html: '<span style="color:' + color + ';font-family:JetBrains Mono,monospace;font-size:9px;font-weight:500;text-shadow:0 0 4px #000,0 0 8px #000;white-space:nowrap">' + mbps(peakRate) + '</span>',
-              iconSize: [70, 14],
-              iconAnchor: [35, 7],
-            }),
-            interactive: false,
-          }))
-          labelCount++
+        if (!groups[gKey]) {
+          groups[gKey] = { conns: [], nodeId, node, isCF }
         }
-
-        // Source marker
-        if (!srcMarkers[conn.src_ip]) {
-          const cityLabel = conn.src_city || conn.src_ip
-          const tipText = conn.src_ip + ' (' + (conn.src_city || '?') + ', ' + (conn.src_country || '?') + ')'
-          const marker = L.marker([conn.src_lat, conn.src_lng], {
-            icon: L.divIcon({
-              className: 'sn-conn-src',
-              html: '<div class="conn-src-marker"></div><div class="conn-src-label">' + esc(cityLabel) + '</div>',
-              iconSize: [6, 6],
-              iconAnchor: [3, 3],
-            }),
-          })
-          marker.bindTooltip(esc(tipText), { direction: 'top', offset: [0, -6] })
-          layerGroup.addLayer(marker)
-          srcMarkers[conn.src_ip] = true
-        }
+        groups[gKey].conns.push(conn)
       })
     })
 
-    console.log('[StarConns] render: removed ' + (oldLabels.length + oldSrcDots.length) + ' old DOM nodes, created ' + labelCount + ' labels')
+    // Render each group as one line
+    const srcDots = {}
+
+    Object.values(groups).forEach(grp => {
+      const { conns, node, isCF } = grp
+      const first = conns[0]
+
+      // Aggregate stats
+      let totalRate = 0, totalBytes = 0
+      conns.forEach(c => {
+        totalRate += (c.rate || 0)
+        totalBytes += (c.total_bytes || 0)
+      })
+
+      const color = getColor(first.protocol)
+      const w = calcWeight(totalRate)
+
+      // Use first connection's geo (CDN IPs in same /16 geolocate the same)
+      const srcLat = first.src_lat
+      const srcLng = first.src_lng
+      const city = first.src_city || '?'
+      const country = first.src_country || '?'
+
+      let tgtLng = node.longitude
+      const d = srcLng - tgtLng
+      if (d > 180) tgtLng += 360
+      else if (d < -180) tgtLng -= 360
+
+      const pts = [[srcLat, srcLng], [node.latitude, tgtLng]]
+
+      // Visible line
+      const line = L.polyline(pts, {
+        color, weight: w, opacity: 0.6,
+        dashArray: '4, 8', interactive: false,
+      })
+      layerGroup.addLayer(line)
+      setTimeout(() => {
+        const el = line.getElement()
+        if (el) el.classList.add('conn-flow')
+      }, 0)
+
+      // Build display strings
+      const subnetStr = isCF ? subnet16(first.src_ip) + '.x.x' : first.src_ip
+      const rateStr = fmtRate(totalRate)
+      const totalStr = fmtBytes(totalBytes)
+
+      // Hover tooltip
+      let tipHtml = '<div class="link-tooltip">'
+      tipHtml += '<b>' + subnetStr + '</b> | ' + city + ', ' + country + '<br>'
+      tipHtml += 'Speed: <b>' + rateStr + '</b> | Total: ' + totalStr + '<br>'
+
+      if (isCF && conns.length > 1) {
+        tipHtml += '<br><span style="color:rgba(255,255,255,0.4)">Active IPs:</span><br>'
+        // Sort individual IPs by rate desc
+        const sorted = conns.slice().sort((a, b) => (b.rate || 0) - (a.rate || 0))
+        sorted.forEach((c, i) => {
+          const prefix = i < sorted.length - 1 ? '\u251c ' : '\u2514 '
+          tipHtml += '<span style="color:rgba(255,255,255,0.5)">' + prefix + '</span>'
+          tipHtml += c.src_ip + ' | ' + fmtRate(c.rate || 0) + ' | ' + fmtBytes(c.total_bytes || 0) + '<br>'
+        })
+      }
+      tipHtml += '</div>'
+
+      // Wide hitbox for hover
+      const hitbox = L.polyline(pts, {
+        weight: Math.max(15, w + 10), opacity: 0, interactive: true,
+      })
+      hitbox.bindTooltip(tipHtml, { sticky: true })
+      layerGroup.addLayer(hitbox)
+
+      // Permanent label only for >= 1 MB/s
+      if (totalRate >= 1048576) {
+        const midLat = (srcLat + node.latitude) / 2
+        const midLng = (srcLng + tgtLng) / 2
+        layerGroup.addLayer(L.marker([midLat, midLng], {
+          icon: L.divIcon({
+            className: 'conn-tip-wrap',
+            html: '<span class="conn-tip-text">' + city + ' | ' + rateStr + ' | ' + totalStr + '</span>',
+            iconSize: [150, 16], iconAnchor: [75, 8],
+          }),
+          interactive: false,
+        }))
+      }
+
+      // Source dot (one per group)
+      const dotKey = isCF ? subnet16(first.src_ip) + '-' + city : first.src_ip
+      if (!srcDots[dotKey]) {
+        layerGroup.addLayer(L.circleMarker([srcLat, srcLng], {
+          radius: 3, color: '#00ccff', fillColor: '#00ccff',
+          fillOpacity: 0.8, weight: 0, interactive: false,
+        }))
+        srcDots[dotKey] = true
+      }
+    })
   }
 
-  // Always MB/s, one decimal place
-  function mbps(bytesPerSec) {
-    return (bytesPerSec / 1048576).toFixed(1) + ' MB/s'
+  // --- Cloudflare detection ---
+
+  function ipToNum(ip) {
+    const p = ip.split('.')
+    return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0
   }
 
-  function rateToWeight(bytesPerSec) {
-    if (bytesPerSec <= 0) return 1
-    if (bytesPerSec < 1024) return 1
-    if (bytesPerSec < 10240) return 2 + (bytesPerSec / 10240)
-    if (bytesPerSec < 102400) return 4 + 2 * (bytesPerSec / 102400)
-    if (bytesPerSec < 1048576) return 7 + 3 * (bytesPerSec / 1048576)
+  function isCloudflare(ip) {
+    const num = ipToNum(ip)
+    for (const [base, bits] of CF_CIDRS) {
+      const mask = (~0 << (32 - bits)) >>> 0
+      if ((num & mask) === (base & mask)) return true
+    }
+    return false
+  }
+
+  function subnet16(ip) {
+    return ip.split('.').slice(0, 2).join('.')
+  }
+
+  // --- Formatting ---
+
+  function fmtRate(bps) {
+    if (!bps || bps < 1) return '0 B/s'
+    if (bps < 1024) return Math.round(bps) + ' B/s'
+    if (bps < 1048576) return (bps / 1024).toFixed(1) + ' KB/s'
+    return (bps / 1048576).toFixed(1) + ' MB/s'
+  }
+
+  function fmtBytes(b) {
+    if (!b || b < 1) return '0 B'
+    if (b < 1024) return b + ' B'
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'
+    if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB'
+    return (b / 1073741824).toFixed(1) + ' GB'
+  }
+
+  function calcWeight(bps) {
+    if (bps <= 0) return 1
+    if (bps < 1024) return 1
+    if (bps < 10240) return 2 + bps / 10240
+    if (bps < 102400) return 4 + 2 * bps / 102400
+    if (bps < 1048576) return 7 + 3 * bps / 1048576
     return 12
   }
 
-  function getPortColor(protocol) {
+  function getColor(protocol) {
     if (!portColorMap[protocol]) {
-      portColorMap[protocol] = COLORS[colorIndex % COLORS.length]
-      colorIndex++
+      portColorMap[protocol] = COLORS[colorIdx % COLORS.length]
+      colorIdx++
     }
     return portColorMap[protocol]
   }
 
-  function esc(str) {
-    if (!str) return ''
-    const d = document.createElement('div')
-    d.textContent = str
-    return d.innerHTML
-  }
-
   function toggle() {
     visible = !visible
-    if (!visible) {
-      layerGroup.clearLayers()
-      document.querySelectorAll('.sn-conn-label').forEach(el => el.remove())
-      document.querySelectorAll('.sn-conn-src').forEach(el => el.remove())
-    }
+    if (!visible) layerGroup.clearLayers()
     return visible
   }
 
-  function isVisible() {
-    return visible
-  }
+  function isVisible() { return visible }
 
   return { init, setNodes, render, toggle, isVisible }
 })()
