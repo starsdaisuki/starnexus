@@ -52,7 +52,7 @@ func main() {
 	defer scheduler.Stop()
 
 	// HTTP server
-	server := api.New(database, cfg.APIToken, cfg.WebDir, cfg.AgentBinaryPath)
+	server := api.New(database, cfg.APIToken, cfg.WebDir, cfg.AgentBinaryPath, cfg.GeoIPDBPath)
 	server.SetReportGenerator(scheduler)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("StarNexus server starting on %s", addr)

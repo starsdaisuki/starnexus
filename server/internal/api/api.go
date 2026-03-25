@@ -19,17 +19,19 @@ type Server struct {
 	token           string
 	webDir          string
 	agentBinaryPath string
+	geoipDBPath     string
 	reportGen       ReportGenerator
 	connStore       *ConnStore
 	mux             *http.ServeMux
 }
 
-func New(database *db.DB, token, webDir, agentBinaryPath string) *Server {
+func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath string) *Server {
 	s := &Server{
 		db:              database,
 		token:           token,
 		webDir:          webDir,
 		agentBinaryPath: agentBinaryPath,
+		geoipDBPath:     geoipDBPath,
 		connStore:       NewConnStore(),
 		mux:             http.NewServeMux(),
 	}
@@ -63,8 +65,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/connections", s.requireAuth(s.handlePostConnections))
 	s.mux.HandleFunc("GET /api/connections", s.handleGetConnections)
 
-	// Downloads
+	// Downloads (no auth)
 	s.mux.HandleFunc("GET /download/agent", s.handleDownloadAgent)
+	s.mux.HandleFunc("GET /download/geoip", s.handleDownloadGeoIP)
+	s.mux.HandleFunc("GET /download/install.sh", s.handleInstallScript)
 	s.mux.HandleFunc("GET /install.sh", s.handleInstallScript)
 
 	// Static files
@@ -261,6 +265,16 @@ func (s *Server) handleDownloadAgent(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, s.agentBinaryPath)
 }
 
+func (s *Server) handleDownloadGeoIP(w http.ResponseWriter, r *http.Request) {
+	if s.geoipDBPath == "" {
+		http.Error(w, "GeoIP DB not configured", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename=GeoLite2-City.mmdb")
+	http.ServeFile(w, r, s.geoipDBPath)
+}
+
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(installScript))
@@ -335,6 +349,14 @@ longitude: 0
 report_interval_seconds: 30
 YAML
 echo "    Config written: $INSTALL_DIR/config.yaml"
+
+# Download GeoIP database (for connection visualization)
+echo "==> Downloading GeoIP database..."
+if curl -sSL --fail "$SERVER_URL/download/geoip" -o "$INSTALL_DIR/GeoLite2-City.mmdb" 2>/dev/null; then
+  echo "    Downloaded: $INSTALL_DIR/GeoLite2-City.mmdb"
+else
+  echo "    GeoIP DB not available on server (connection tracking will be disabled)"
+fi
 
 # Create systemd service
 cat > /etc/systemd/system/starnexus-agent.service << UNIT

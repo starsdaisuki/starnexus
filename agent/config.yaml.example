@@ -1,8 +1,17 @@
 server_url: "http://SERVER_IP:8900"
 api_token: "CHANGE_ME"
-node_id: "tokyo-dmit"
-node_name: "Tokyo DMIT"
-provider: "DMIT"
-latitude: 35.6762
-longitude: 139.6503
+node_id: "my-node"
+node_name: "My Node"
+provider: "Provider"
+public_ip: ""
+latitude: 0
+longitude: 0
 report_interval_seconds: 30
+geoip_db_path: "./GeoLite2-City.mmdb"
+connection_report_interval_seconds: 5
+probe_targets:
+  - node_id: "other-node"
+    host: "1.2.3.4"
+    port: 22
+port_labels:
+  443: "VLESS+WS (CDN)"

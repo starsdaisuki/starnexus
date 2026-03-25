@@ -12,6 +12,7 @@ type Config struct {
 	APIToken                string  `yaml:"api_token"`
 	WebDir                  string  `yaml:"web_dir"`
 	AgentBinaryPath         string  `yaml:"agent_binary_path"`
+	GeoIPDBPath             string  `yaml:"geoip_db_path"`
 	OfflineThresholdSeconds int     `yaml:"offline_threshold_seconds"`
 	BotToken                string  `yaml:"bot_token"`
 	BotChatIDs              []int64 `yaml:"bot_chat_ids"`
