@@ -1,19 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# StarNexus Server Deployment Script
+# ============================================================
+# StarNexus Full Server Deployment
 # Deploys server + agent + bot to a VPS in one command.
 #
-# Usage: ./scripts/deploy-server.sh user@host
+# Usage: ./scripts/deploy-server.sh <ssh-host>
+# Example: ./scripts/deploy-server.sh root@10.0.0.1
+#          ./scripts/deploy-server.sh dmit
 #
-# Prompts for: API token, Telegram bot token, chat IDs, Mistral key,
-#              node ID/name, probe targets.
-# Handles: build, upload, config generation, systemd, GeoIP, firewall hint.
+# What this does:
+#   1. Prompts for all secrets and node info
+#   2. Builds all three binaries (linux/amd64)
+#   3. Uploads binaries, schema, web files to the VPS
+#   4. Downloads GeoIP database on the VPS
+#   5. Generates all config files
+#   6. Sets up iptables firewall rules
+#   7. Creates and starts systemd services
+#   8. Verifies everything is running
+# ============================================================
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <ssh-host>"
-  echo "Example: $0 root@10.0.0.1"
-  echo "         $0 dmit"
+  echo ""
+  echo "Examples:"
+  echo "  $0 root@10.0.0.1"
+  echo "  $0 dmit                    (uses SSH config alias)"
+  echo ""
+  echo "This deploys the full StarNexus stack (server + agent + bot)"
+  echo "to the target VPS. You will be prompted for secrets."
   exit 1
 fi
 
@@ -21,23 +36,68 @@ SSH_HOST="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BIN_DIR="$SCRIPT_DIR/bin"
 
-echo "================================================"
-echo " StarNexus Server Deployment"
-echo " Target: $SSH_HOST"
-echo "================================================"
+echo ""
+echo "============================================================"
+echo "  StarNexus Server Deployment"
+echo "  Target: $SSH_HOST"
+echo "============================================================"
 echo ""
 
-# --- Collect secrets ---
+# ============================================================
+# Step 1: Collect secrets and configuration
+# ============================================================
 
-read -rp "API token (or press Enter to generate): " API_TOKEN
+echo "--- Secrets ---"
+echo ""
+
+read -rp "API token (Enter to auto-generate): " API_TOKEN
 if [[ -z "$API_TOKEN" ]]; then
   API_TOKEN=$(openssl rand -hex 32)
   echo "  Generated: $API_TOKEN"
 fi
+echo ""
 
 read -rp "Telegram bot token (from @BotFather): " TG_TOKEN
-read -rp "Telegram chat IDs (space-separated): " CHAT_IDS_RAW
-read -rp "Mistral API key (optional, Enter to skip): " MISTRAL_KEY
+if [[ -z "$TG_TOKEN" ]]; then
+  echo "  WARNING: No bot token — Telegram alerts will be disabled."
+fi
+echo ""
+
+CHAT_IDS_RAW=""
+if [[ -n "$TG_TOKEN" ]]; then
+  read -rp "Telegram chat IDs (space-separated, from @userinfobot): " CHAT_IDS_RAW
+fi
+
+read -rp "Mistral API key (Enter to skip — AI reports disabled): " MISTRAL_KEY
+echo ""
+
+echo "--- Node info for this server ---"
+echo ""
+
+read -rp "Public IP of this server: " PUBLIC_IP
+while [[ -z "$PUBLIC_IP" ]]; do
+  read -rp "  Public IP is required: " PUBLIC_IP
+done
+
+read -rp "Node ID (e.g. tokyo-dmit, us-west-1): " NODE_ID
+while [[ -z "$NODE_ID" ]]; do
+  read -rp "  Node ID is required: " NODE_ID
+done
+
+read -rp "Display name (e.g. Tokyo DMIT): " NODE_NAME
+[[ -z "$NODE_NAME" ]] && NODE_NAME="$NODE_ID"
+
+read -rp "Provider (e.g. DMIT, Aliyun, AWS): " PROVIDER
+[[ -z "$PROVIDER" ]] && PROVIDER="Unknown"
+
+read -rp "Latitude (0 = auto-detect via ip-api.com): " LATITUDE
+LATITUDE=${LATITUDE:-0}
+
+read -rp "Longitude (0 = auto-detect): " LONGITUDE
+LONGITUDE=${LONGITUDE:-0}
+
+read -rp "SSH port of this server (default 22): " SSH_PORT
+SSH_PORT=${SSH_PORT:-22}
 echo ""
 
 # Format chat IDs as YAML list
@@ -46,66 +106,68 @@ for cid in $CHAT_IDS_RAW; do
   CHAT_IDS_YAML+="  - $cid"$'\n'
 done
 
-# --- Node config ---
-
-read -rp "Node ID for this server (e.g. tokyo-dmit): " NODE_ID
-read -rp "Node display name (e.g. Tokyo DMIT): " NODE_NAME
-read -rp "Provider name (e.g. DMIT): " PROVIDER
-read -rp "Public IP of this server: " PUBLIC_IP
-read -rp "Latitude (0 for auto-detect): " LATITUDE
-LATITUDE=${LATITUDE:-0}
-read -rp "Longitude (0 for auto-detect): " LONGITUDE
-LONGITUDE=${LONGITUDE:-0}
-read -rp "SSH port of this server (for other agents to probe, e.g. 22): " SSH_PORT
-SSH_PORT=${SSH_PORT:-22}
-echo ""
-
-# --- Probe target (optional) ---
-
-read -rp "Add a probe target? (y/N): " ADD_PROBE
+# Probe target (optional)
+echo "--- Link probing (optional) ---"
+read -rp "Add a probe target to another VPS? (y/N): " ADD_PROBE
 PROBE_YAML=""
+PROBE_VPS_IP=""
 if [[ "$ADD_PROBE" =~ ^[yY] ]]; then
-  read -rp "  Target node ID: " PROBE_NODE_ID
-  read -rp "  Target IP: " PROBE_HOST
-  read -rp "  Target TCP port (e.g. SSH port): " PROBE_PORT
+  read -rp "  Target node ID (e.g. jp-lisahost): " PROBE_NODE_ID
+  read -rp "  Target VPS IP: " PROBE_HOST
+  read -rp "  Target TCP port (e.g. SSH port, default 22): " PROBE_PORT
+  PROBE_PORT=${PROBE_PORT:-22}
+  PROBE_VPS_IP="$PROBE_HOST"
   PROBE_YAML="probe_targets:
   - node_id: \"$PROBE_NODE_ID\"
     host: \"$PROBE_HOST\"
     port: $PROBE_PORT"
 fi
-
 echo ""
-echo "================================================"
-echo " Building binaries..."
-echo "================================================"
 
-cd "$SCRIPT_DIR/server" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BIN_DIR/starnexus-server" .
-cd "$SCRIPT_DIR/agent"  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BIN_DIR/starnexus-agent" .
-cd "$SCRIPT_DIR/bot"    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BIN_DIR/starnexus-bot" .
+# ============================================================
+# Step 2: Build binaries
+# ============================================================
+
+echo "============================================================"
+echo "  Building binaries (linux/amd64)..."
+echo "============================================================"
+
+mkdir -p "$BIN_DIR"
+cd "$SCRIPT_DIR/server" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BIN_DIR/starnexus-server" . && echo "  server OK"
+cd "$SCRIPT_DIR/agent"  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BIN_DIR/starnexus-agent" .  && echo "  agent  OK"
+cd "$SCRIPT_DIR/bot"    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BIN_DIR/starnexus-bot" .    && echo "  bot    OK"
 cd "$SCRIPT_DIR"
-
-echo "  server: $(ls -lh "$BIN_DIR/starnexus-server" | awk '{print $5}')"
-echo "  agent:  $(ls -lh "$BIN_DIR/starnexus-agent" | awk '{print $5}')"
-echo "  bot:    $(ls -lh "$BIN_DIR/starnexus-bot" | awk '{print $5}')"
-
 echo ""
-echo "================================================"
-echo " Uploading to $SSH_HOST..."
-echo "================================================"
+
+# ============================================================
+# Step 3: Upload files
+# ============================================================
+
+echo "============================================================"
+echo "  Uploading to $SSH_HOST..."
+echo "============================================================"
 
 ssh "$SSH_HOST" "mkdir -p ~/starnexus/{web,bin}"
-scp "$BIN_DIR/starnexus-server" "$BIN_DIR/starnexus-agent" "$BIN_DIR/starnexus-bot" "$SSH_HOST:~/starnexus/"
-scp "$BIN_DIR/starnexus-agent" "$SSH_HOST:~/starnexus/bin/"
-scp "$SCRIPT_DIR/server/schema.sql" "$SSH_HOST:~/starnexus/"
-scp -r "$SCRIPT_DIR/server/web/"* "$SSH_HOST:~/starnexus/web/"
+
+echo "  Uploading binaries..."
+scp -q "$BIN_DIR/starnexus-server" "$BIN_DIR/starnexus-agent" "$BIN_DIR/starnexus-bot" "$SSH_HOST:~/starnexus/"
+scp -q "$BIN_DIR/starnexus-agent" "$SSH_HOST:~/starnexus/bin/"
+
+echo "  Uploading schema and web files..."
+scp -q "$SCRIPT_DIR/server/schema.sql" "$SSH_HOST:~/starnexus/"
+scp -qr "$SCRIPT_DIR/server/web/"* "$SSH_HOST:~/starnexus/web/"
 
 echo "  Downloading GeoIP database on server..."
-ssh "$SSH_HOST" "cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/"
-
+ssh "$SSH_HOST" "cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/ && echo '  GeoIP: $(ls -lh GeoLite2-City.mmdb | awk \"{print \\$5}\")'"
 echo ""
-echo "================================================"
-echo " Writing configs..."
-echo "================================================"
+
+# ============================================================
+# Step 4: Write config files
+# ============================================================
+
+echo "============================================================"
+echo "  Writing config files..."
+echo "============================================================"
 
 # Server config
 ssh "$SSH_HOST" "cat > ~/starnexus/config.yaml" << YAML
@@ -121,6 +183,7 @@ bot_chat_ids:
 $CHAT_IDS_YAML
 mistral_api_key: "$MISTRAL_KEY"
 YAML
+echo "  config.yaml"
 
 # Agent config
 ssh "$SSH_HOST" "cat > ~/starnexus/agent-config.yaml" << YAML
@@ -137,6 +200,7 @@ geoip_db_path: "./GeoLite2-City.mmdb"
 connection_report_interval_seconds: 5
 $PROBE_YAML
 YAML
+echo "  agent-config.yaml"
 
 # Bot config
 ssh "$SSH_HOST" "cat > ~/starnexus/bot-config.yaml" << YAML
@@ -148,15 +212,42 @@ api_token: "$API_TOKEN"
 poll_interval_seconds: 30
 heartbeat_interval_seconds: 300
 YAML
-
-echo "  Configs written."
-
+echo "  bot-config.yaml"
 echo ""
-echo "================================================"
-echo " Creating systemd services..."
-echo "================================================"
 
-ssh "$SSH_HOST" 'cat > /etc/systemd/system/starnexus-server.service << "EOF"
+# ============================================================
+# Step 5: Firewall
+# ============================================================
+
+echo "============================================================"
+echo "  Configuring firewall..."
+echo "============================================================"
+
+# Build firewall commands
+FW_CMDS="iptables -C INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT"
+
+if [[ -n "$PROBE_VPS_IP" ]]; then
+  FW_CMDS="$FW_CMDS; iptables -C INPUT -p tcp -s $PROBE_VPS_IP --dport 8900 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp -s $PROBE_VPS_IP --dport 8900 -j ACCEPT"
+  FW_CMDS="$FW_CMDS; iptables -C INPUT -p icmp -s $PROBE_VPS_IP -j ACCEPT 2>/dev/null || iptables -I INPUT -p icmp -s $PROBE_VPS_IP -j ACCEPT"
+fi
+
+# Add DROP rule at the end (only if not already present)
+FW_CMDS="$FW_CMDS; iptables -C INPUT -p tcp --dport 8900 -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 8900 -j DROP"
+
+ssh "$SSH_HOST" "$FW_CMDS" 2>/dev/null || true
+echo "  iptables rules applied:"
+ssh "$SSH_HOST" "iptables -L INPUT -n | grep 8900"
+echo ""
+
+# ============================================================
+# Step 6: Systemd services
+# ============================================================
+
+echo "============================================================"
+echo "  Creating systemd services..."
+echo "============================================================"
+
+ssh "$SSH_HOST" 'cat > /etc/systemd/system/starnexus-server.service << "SVC"
 [Unit]
 Description=StarNexus Server
 After=network.target
@@ -171,9 +262,9 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVC
 
-cat > /etc/systemd/system/starnexus-agent.service << "EOF"
+cat > /etc/systemd/system/starnexus-agent.service << "SVC"
 [Unit]
 Description=StarNexus Agent
 After=network.target starnexus-server.service
@@ -188,9 +279,9 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVC
 
-cat > /etc/systemd/system/starnexus-bot.service << "EOF"
+cat > /etc/systemd/system/starnexus-bot.service << "SVC"
 [Unit]
 Description=StarNexus Telegram Bot
 After=network.target starnexus-server.service
@@ -205,16 +296,19 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVC
 
 systemctl daemon-reload'
-
-echo "  Services created."
-
+echo "  Created: starnexus-server, starnexus-agent, starnexus-bot"
 echo ""
-echo "================================================"
-echo " Starting services..."
-echo "================================================"
+
+# ============================================================
+# Step 7: Start and verify
+# ============================================================
+
+echo "============================================================"
+echo "  Starting services..."
+echo "============================================================"
 
 ssh "$SSH_HOST" '
 systemctl enable --now starnexus-server
@@ -223,33 +317,48 @@ systemctl enable --now starnexus-agent
 sleep 1
 systemctl enable --now starnexus-bot
 sleep 3
-echo "server: $(systemctl is-active starnexus-server)"
-echo "agent:  $(systemctl is-active starnexus-agent)"
-echo "bot:    $(systemctl is-active starnexus-bot)"
-echo ""
-echo "API test: $(curl -s http://localhost:8900/api/status)"
-'
 
 echo ""
-echo "================================================"
-echo " Deployment complete!"
-echo "================================================"
+echo "  Service status:"
+echo "    server: $(systemctl is-active starnexus-server)"
+echo "    agent:  $(systemctl is-active starnexus-agent)"
+echo "    bot:    $(systemctl is-active starnexus-bot)"
 echo ""
-echo "IMPORTANT: Configure firewall on the server:"
-echo "  iptables -A INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT"
-echo "  iptables -A INPUT -p tcp -s OTHER_VPS_IP --dport 8900 -j ACCEPT"
-echo "  iptables -A INPUT -p icmp -s OTHER_VPS_IP -j ACCEPT"
-echo "  iptables -A INPUT -p tcp --dport 8900 -j DROP"
+echo "  API test:"
+echo "    $(curl -s http://localhost:8900/api/status)"
+'
+
+# ============================================================
+# Done
+# ============================================================
+
 echo ""
-echo "Access dashboard: ssh -L 8900:localhost:8900 $SSH_HOST"
-echo "Then open: http://localhost:8900"
+echo "============================================================"
+echo "  Deployment complete!"
+echo "============================================================"
 echo ""
-echo "Install agent on other VPS:"
-echo "  curl -sSL http://$PUBLIC_IP:8900/install.sh | bash -s -- \\"
-echo "    --server http://$PUBLIC_IP:8900 \\"
-echo "    --token $API_TOKEN \\"
-echo "    --node-id <id> --node-name \"<name>\""
+echo "  Dashboard:  ssh -L 8900:localhost:8900 $SSH_HOST"
+echo "              then open http://localhost:8900"
 echo ""
-echo "API token: $API_TOKEN"
-echo "Bot token: $TG_TOKEN"
-echo "Save these — they are not stored anywhere else."
+echo "  Agent install on other VPS:"
+echo "    1. On THIS server, whitelist the new VPS IP:"
+echo "       ssh $SSH_HOST \"iptables -I INPUT -p tcp -s NEW_VPS_IP --dport 8900 -j ACCEPT\""
+echo ""
+echo "    2. On the new VPS, run:"
+echo "       curl -sSL http://$PUBLIC_IP:8900/install.sh | bash -s -- \\"
+echo "         --server http://$PUBLIC_IP:8900 \\"
+echo "         --token $API_TOKEN \\"
+echo "         --node-id NEW_NODE_ID \\"
+echo "         --node-name \"New Node Name\" \\"
+echo "         --provider \"Provider\""
+echo ""
+echo "  Secrets (save these!):"
+echo "    API token: $API_TOKEN"
+if [[ -n "$TG_TOKEN" ]]; then
+  echo "    Bot token: $TG_TOKEN"
+fi
+echo ""
+echo "  Logs:"
+echo "    journalctl -u starnexus-server -f"
+echo "    journalctl -u starnexus-agent -f"
+echo "    journalctl -u starnexus-bot -f"
