@@ -6,7 +6,7 @@ set -euo pipefail
 # Deploys server + agent + bot to a VPS in one command.
 #
 # Usage: ./scripts/deploy-server.sh <ssh-host>
-# Example: ./scripts/deploy-server.sh root@10.0.0.1
+# Example: ./scripts/deploy-server.sh root@YOUR_SERVER_IP
 #          ./scripts/deploy-server.sh dmit
 #
 # What this does:
@@ -24,7 +24,7 @@ if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <ssh-host>"
   echo ""
   echo "Examples:"
-  echo "  $0 root@10.0.0.1"
+  echo "  $0 root@YOUR_SERVER_IP"
   echo "  $0 dmit                    (uses SSH config alias)"
   echo ""
   echo "This deploys the full StarNexus stack (server + agent + bot)"

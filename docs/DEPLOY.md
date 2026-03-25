@@ -59,14 +59,14 @@ You need this BEFORE deploying, because the bot token goes into the config files
 3. Send: `/newbot`
 4. Enter a name: `StarNexus Monitor` (or anything you like)
 5. Enter a username: `my_starnexus_bot` (must end in `bot`)
-6. BotFather replies with a **token** like: `REDACTED_BOT_TOKEN`
+6. BotFather replies with a **token** like: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz-EXAMPLE`
 7. **Save this token** — you'll need it in Step 4
 
 ### 2b. Get your chat ID
 
 1. Search for **@userinfobot** on Telegram and start a chat
 2. Send: `/start`
-3. It replies with your **ID** like: `REDACTED_CHAT_ID_1`
+3. It replies with your **ID** like: `123456789`
 4. **Save this number** — you'll need it in Step 4
 
 If you want a second person to receive alerts, have them do the same with @userinfobot.
@@ -81,7 +81,7 @@ This is a shared secret that all components use to talk to each other.
 openssl rand -hex 32
 ```
 
-This outputs something like: `REDACTED_API_TOKEN`
+This outputs something like: `a1b2c3d4e5f6...your-token-here...`
 
 **Save this** — it goes into every config file.
 
@@ -152,7 +152,7 @@ db_path: "./starnexus.db"
 
 # Shared secret. All agents and the bot use this to authenticate.
 # Generate with: openssl rand -hex 32
-api_token: "REDACTED_API_TOKEN"
+api_token: "a1b2c3d4e5f6...your-token-here..."
 
 # Frontend files directory.
 web_dir: "./web"
@@ -171,12 +171,12 @@ geoip_db_path: "./bin/GeoLite2-City.mmdb"
 
 # Telegram bot token. The SERVER uses this to send analytics alerts
 # (anomaly detection, daily reports). This is SEPARATE from the bot module.
-bot_token: "REDACTED_BOT_TOKEN"
+bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz-EXAMPLE"
 
 # Telegram chat IDs to receive analytics alerts.
 bot_chat_ids:
-  - REDACTED_CHAT_ID_1
-  - REDACTED_CHAT_ID_2
+  - 123456789
+  - 987654321
 
 # Mistral AI API key for the AI-powered daily report.
 # Get from https://console.mistral.ai — leave empty to disable.
@@ -192,7 +192,7 @@ Create `~/starnexus/agent-config.yaml` on the server:
 server_url: "http://127.0.0.1:8900"
 
 # Must match the server's api_token exactly.
-api_token: "REDACTED_API_TOKEN"
+api_token: "a1b2c3d4e5f6...your-token-here..."
 
 # Unique node ID. Used in the database and API.
 node_id: "tokyo-dmit"
@@ -224,7 +224,7 @@ connection_report_interval_seconds: 5
 probe_targets:
   - node_id: "jp-lisahost"      # Must match the other node's node_id
     host: "10.0.0.2"        # IP of the other node
-    port: 52687                 # TCP port to connect to (SSH port works)
+    port: 22                 # TCP port to connect to (SSH port works)
 
 # Optional: label proxy ports on the map visualization.
 # port_labels:
@@ -238,19 +238,19 @@ Create `~/starnexus/bot-config.yaml` on the server:
 
 ```yaml
 # Telegram bot token. Same as in server config.
-telegram_token: "REDACTED_BOT_TOKEN"
+telegram_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz-EXAMPLE"
 
 # Chat IDs that can send commands to the bot AND receive alerts.
 # Only these users can interact with the bot.
 chat_ids:
-  - REDACTED_CHAT_ID_1
-  - REDACTED_CHAT_ID_2
+  - 123456789
+  - 987654321
 
 # Server URL. Localhost because bot runs on the same VPS.
 server_url: "http://127.0.0.1:8900"
 
 # Must match server's api_token.
-api_token: "REDACTED_API_TOKEN"
+api_token: "a1b2c3d4e5f6...your-token-here..."
 
 # How often the bot checks for node status changes (seconds).
 poll_interval_seconds: 30
@@ -450,7 +450,7 @@ set -uo pipefail
 # Change these values:
 TARGET_URL="http://10.0.0.1:8900/api/status"   # Primary server URL
 BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"                   # Same bot token
-CHAT_IDS="REDACTED_CHAT_ID_1 REDACTED_CHAT_ID_2"                      # Space-separated chat IDs
+CHAT_IDS="123456789 987654321"                      # Space-separated chat IDs
 
 FAIL_FILE="/tmp/starnexus-heartbeat-fails"
 

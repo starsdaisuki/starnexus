@@ -16,3 +16,8 @@ bin/
 server/config.yaml
 agent/config.yaml
 bot/config.yaml
+**/config.yaml
+!**/config.yaml.example
+*-config.yaml
+.geoip-cache.json
+GeoLite2-City.mmdb
