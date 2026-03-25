@@ -1,0 +1,4 @@
+version = 1
+
+# No image is approved yet. Approval requires a human review of the exact
+# path + SHA-256 pair, including pixels and embedded metadata.

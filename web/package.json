@@ -1,0 +1,17 @@
+{
+  "name": "starnexus-web",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "db:init": "wrangler d1 execute starnexus-db --local --file=schema.sql",
+    "db:seed": "wrangler d1 execute starnexus-db --local --file=seed-data.sql",
+    "db:reset": "npm run db:init && npm run db:seed",
+    "deploy": "wrangler pages deploy public"
+  },
+  "devDependencies": {
+    "wrangler": "^3",
+    "@cloudflare/workers-types": "^4",
+    "hono": "^4",
+    "typescript": "^5"
+  }
+}

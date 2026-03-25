@@ -1,0 +1,5 @@
+version = 1
+
+approved_emails = []
+approved_ips = []
+approved_uuids = []

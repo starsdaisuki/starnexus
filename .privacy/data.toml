@@ -1,0 +1,4 @@
+version = 1
+
+# No data artifact is approved yet. Real anonymized benchmark outputs must not
+# be labelled synthetic merely to satisfy the publication gate.
