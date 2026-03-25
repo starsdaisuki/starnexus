@@ -4,3 +4,15 @@ node_modules/
 .DS_Store
 *.log
 web/public/assets/earth-at-night.png
+
+# Go build artifacts
+bin/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Config files with secrets (only commit *.example)
+server/config.yaml
+agent/config.yaml
+bot/config.yaml

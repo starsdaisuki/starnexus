@@ -1,0 +1,8 @@
+telegram_token: "BOT_TOKEN_HERE"
+chat_ids:
+  - 123456789
+  - 987654321
+server_url: "http://SERVER_IP:8900"
+api_token: "CHANGE_ME"
+poll_interval_seconds: 30
+heartbeat_interval_seconds: 300
