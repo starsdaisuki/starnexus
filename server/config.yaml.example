@@ -1,0 +1,5 @@
+port: 8900
+db_path: "./starnexus.db"
+api_token: "CHANGE_ME"
+web_dir: "./web"
+offline_threshold_seconds: 90

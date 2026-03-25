@@ -1,3 +1,0 @@
-# StarNexus Server
-
-Coming soon.

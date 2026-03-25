@@ -1,3 +1,0 @@
-# StarNexus Agent
-
-Coming soon.

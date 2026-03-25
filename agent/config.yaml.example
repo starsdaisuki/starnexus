@@ -1,0 +1,8 @@
+server_url: "http://SERVER_IP:8900"
+api_token: "CHANGE_ME"
+node_id: "node-a"
+node_name: "Node A"
+provider: "Provider A"
+latitude: 35.6762
+longitude: 139.6503
+report_interval_seconds: 30
