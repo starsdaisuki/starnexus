@@ -419,6 +419,106 @@ body {
 }
 
 /* ============================================================
+   Link Lines
+   ============================================================ */
+
+/* Flowing dash animation */
+.link-flow {
+  animation: dash-flow 1.5s linear infinite;
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+/* Latency label at midpoint */
+.link-label {
+  background: none !important;
+  border: none !important;
+}
+
+.link-label-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Connection Lines
+   ============================================================ */
+
+.conn-flow {
+  animation: conn-dash 1s linear infinite;
+}
+
+@keyframes conn-dash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* Rate labels on connection lines */
+.conn-rate-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Source markers */
+.conn-src-marker {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00ccff;
+  box-shadow: 0 0 6px #00ccff, 0 0 12px rgba(0, 204, 255, 0.3);
+}
+
+.conn-src-label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: rgba(0, 204, 255, 0.7);
+  white-space: nowrap;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+/* Toggle button */
+.btn-toggle-conns {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-toggle-conns:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-toggle-conns.active {
+  color: #00ccff;
+  border-color: rgba(0, 204, 255, 0.4);
+}
+
+/* ============================================================
    Link Tooltip
    ============================================================ */
 

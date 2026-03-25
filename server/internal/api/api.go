@@ -9,22 +9,37 @@ import (
 	"github.com/starsdaisuki/starnexus/server/internal/db"
 )
 
-type Server struct {
-	db       *db.DB
-	token    string
-	webDir   string
-	mux      *http.ServeMux
+// ReportGenerator generates on-demand daily reports.
+type ReportGenerator interface {
+	GenerateReport() string
 }
 
-func New(database *db.DB, token, webDir string) *Server {
+type Server struct {
+	db              *db.DB
+	token           string
+	webDir          string
+	agentBinaryPath string
+	reportGen       ReportGenerator
+	connStore       *ConnStore
+	mux             *http.ServeMux
+}
+
+func New(database *db.DB, token, webDir, agentBinaryPath string) *Server {
 	s := &Server{
-		db:     database,
-		token:  token,
-		webDir: webDir,
-		mux:    http.NewServeMux(),
+		db:              database,
+		token:           token,
+		webDir:          webDir,
+		agentBinaryPath: agentBinaryPath,
+		connStore:       NewConnStore(),
+		mux:             http.NewServeMux(),
 	}
 	s.routes()
 	return s
+}
+
+// SetReportGenerator sets the report generator (called after analytics scheduler is created).
+func (s *Server) SetReportGenerator(rg ReportGenerator) {
+	s.reportGen = rg
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -38,10 +53,19 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/links", s.handleGetLinks)
 	s.mux.HandleFunc("GET /api/status", s.handleGetStatus)
 	s.mux.HandleFunc("GET /api/history/{id}", s.handleGetHistory)
+	s.mux.HandleFunc("GET /api/scores", s.handleGetScores)
 
 	// Agent API (auth required)
 	s.mux.HandleFunc("POST /api/report", s.requireAuth(s.handleReport))
 	s.mux.HandleFunc("POST /api/nodes", s.requireAuth(s.handleCreateNode))
+	s.mux.HandleFunc("DELETE /api/nodes/{id}", s.requireAuth(s.handleDeleteNode))
+	s.mux.HandleFunc("GET /api/daily-report", s.requireAuth(s.handleDailyReport))
+	s.mux.HandleFunc("POST /api/connections", s.requireAuth(s.handlePostConnections))
+	s.mux.HandleFunc("GET /api/connections", s.handleGetConnections)
+
+	// Downloads
+	s.mux.HandleFunc("GET /download/agent", s.handleDownloadAgent)
+	s.mux.HandleFunc("GET /install.sh", s.handleInstallScript)
 
 	// Static files
 	if s.webDir != "" {
@@ -130,6 +154,19 @@ func (s *Server) handleGetHistory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"history": history})
 }
 
+func (s *Server) handleGetScores(w http.ResponseWriter, r *http.Request) {
+	scores, err := s.db.GetAllScores()
+	if err != nil {
+		log.Printf("GetAllScores error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if scores == nil {
+		scores = []db.NodeScore{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"scores": scores})
+}
+
 // --- Agent handlers ---
 
 func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
@@ -192,6 +229,149 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, map[string]bool{"ok": true})
 }
+
+func (s *Server) handleDailyReport(w http.ResponseWriter, r *http.Request) {
+	if s.reportGen == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "report generator not available"})
+		return
+	}
+	report := s.reportGen.GenerateReport()
+	writeJSON(w, http.StatusOK, map[string]string{"report": report})
+}
+
+func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.db.DeleteNode(id); err != nil {
+		log.Printf("DeleteNode error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// --- Download handlers ---
+
+func (s *Server) handleDownloadAgent(w http.ResponseWriter, r *http.Request) {
+	if s.agentBinaryPath == "" {
+		http.Error(w, "Agent binary not configured", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename=starnexus-agent")
+	http.ServeFile(w, r, s.agentBinaryPath)
+}
+
+func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(installScript))
+}
+
+const installScript = `#!/usr/bin/env bash
+set -euo pipefail
+
+# StarNexus Agent Install Script
+# Usage: curl -sSL http://<server>:8900/install.sh | bash -s -- \
+#   --server http://<server>:8900 --token <token> --node-id <id> --node-name "<name>"
+
+SERVER_URL=""
+API_TOKEN=""
+NODE_ID=""
+NODE_NAME=""
+PROVIDER=""
+INSTALL_DIR="$HOME/starnexus"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --server)   SERVER_URL="$2"; shift 2 ;;
+    --token)    API_TOKEN="$2"; shift 2 ;;
+    --node-id)  NODE_ID="$2"; shift 2 ;;
+    --node-name) NODE_NAME="$2"; shift 2 ;;
+    --provider) PROVIDER="$2"; shift 2 ;;
+    --dir)      INSTALL_DIR="$2"; shift 2 ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+if [[ -z "$SERVER_URL" || -z "$API_TOKEN" || -z "$NODE_ID" ]]; then
+  echo "Error: --server, --token, and --node-id are required"
+  echo ""
+  echo "Usage: curl -sSL http://<server>:8900/install.sh | bash -s -- \\"
+  echo "  --server http://<server>:8900 \\"
+  echo "  --token <api-token> \\"
+  echo "  --node-id <node-id> \\"
+  echo "  --node-name \"<display name>\" \\"
+  echo "  --provider \"<provider name>\""
+  exit 1
+fi
+
+[[ -z "$NODE_NAME" ]] && NODE_NAME="$NODE_ID"
+[[ -z "$PROVIDER" ]] && PROVIDER="Unknown"
+
+echo "==> Installing StarNexus Agent"
+echo "    Server:  $SERVER_URL"
+echo "    Node ID: $NODE_ID"
+echo "    Name:    $NODE_NAME"
+echo "    Dir:     $INSTALL_DIR"
+echo ""
+
+# Create directory
+mkdir -p "$INSTALL_DIR"
+
+# Download agent binary
+echo "==> Downloading agent binary..."
+curl -sSL "$SERVER_URL/download/agent" -o "$INSTALL_DIR/starnexus-agent"
+chmod +x "$INSTALL_DIR/starnexus-agent"
+echo "    Downloaded: $INSTALL_DIR/starnexus-agent"
+
+# Write config (lat/lng = 0 triggers auto-detect on first run)
+cat > "$INSTALL_DIR/config.yaml" << YAML
+server_url: "$SERVER_URL"
+api_token: "$API_TOKEN"
+node_id: "$NODE_ID"
+node_name: "$NODE_NAME"
+provider: "$PROVIDER"
+latitude: 0
+longitude: 0
+report_interval_seconds: 30
+YAML
+echo "    Config written: $INSTALL_DIR/config.yaml"
+
+# Create systemd service
+cat > /etc/systemd/system/starnexus-agent.service << UNIT
+[Unit]
+Description=StarNexus Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/starnexus-agent
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+echo "    Systemd service created"
+
+# Enable and start
+systemctl daemon-reload
+systemctl enable --now starnexus-agent
+sleep 3
+
+# Status check
+if systemctl is-active --quiet starnexus-agent; then
+  echo ""
+  echo "==> StarNexus Agent installed and running!"
+  echo "    Status: $(systemctl is-active starnexus-agent)"
+  echo "    Logs:   journalctl -u starnexus-agent -f"
+else
+  echo ""
+  echo "==> WARNING: Agent may not have started correctly."
+  echo "    Check: journalctl -u starnexus-agent --no-pager -n 20"
+fi
+`
 
 // --- Helpers ---
 

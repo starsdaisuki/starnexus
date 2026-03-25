@@ -4,11 +4,13 @@
 
 const StarApp = (() => {
   const API_BASE = '/api'
-  const POLL_INTERVAL = 30000 // 30s
-  const UPDATE_TICK = 1000    // 1s tick for "last update" display
+  const POLL_INTERVAL = 30000  // 30s for nodes/links/status
+  const CONN_INTERVAL = 5000   // 5s for live connections
+  const UPDATE_TICK = 1000     // 1s tick for "last update" display
 
   let lastUpdateTime = null
   let pollTimer = null
+  let connTimer = null
   let tickTimer = null
   let hasError = false
 
@@ -17,6 +19,7 @@ const StarApp = (() => {
     const map = StarMap.init()
     StarNodes.init(map)
     StarLinks.init(map)
+    StarConns.init(map)
 
     // Bind refresh button
     document.getElementById('btn-refresh').addEventListener('click', () => {
@@ -26,11 +29,20 @@ const StarApp = (() => {
       fetchAll()
     })
 
+    // Bind connection toggle
+    document.getElementById('btn-toggle-conns').addEventListener('click', () => {
+      const btn = document.getElementById('btn-toggle-conns')
+      const visible = StarConns.toggle()
+      btn.classList.toggle('active', visible)
+      if (visible) fetchConnections()
+    })
+
     // Initial load
     await fetchAll()
 
     // Polling
     pollTimer = setInterval(fetchAll, POLL_INTERVAL)
+    connTimer = setInterval(fetchConnections, CONN_INTERVAL)
 
     // Tick "last update" every second
     tickTimer = setInterval(updateLastUpdateDisplay, UPDATE_TICK)
@@ -52,9 +64,12 @@ const StarApp = (() => {
       const linksData = await linksRes.json()
       const statusData = await statusRes.json()
 
+      const nodes = nodesData.nodes || []
+
       // Render
-      StarNodes.render(nodesData.nodes || [])
-      StarLinks.render(linksData.links || [], nodesData.nodes || [])
+      StarNodes.render(nodes)
+      StarLinks.render(linksData.links || [], nodes)
+      StarConns.setNodes(nodes)
       updateStatusBar(statusData)
 
       // Update timestamp
@@ -63,6 +78,19 @@ const StarApp = (() => {
     } catch (e) {
       console.error('Data fetch failed:', e)
       showError()
+    }
+  }
+
+  async function fetchConnections() {
+    if (!StarConns.isVisible()) return
+
+    try {
+      const resp = await fetch(`${API_BASE}/connections`)
+      if (!resp.ok) return
+      const data = await resp.json()
+      StarConns.render(data)
+    } catch (e) {
+      // Silent — connections are best-effort
     }
   }
 
