@@ -21,3 +21,7 @@ bot/config.yaml
 *-config.yaml
 .geoip-cache.json
 GeoLite2-City.mmdb
+
+# Dev logs (private, do not push)
+docs/dev-log-*.md
+docs/starnexus-dev-log-*.md
