@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StarNexus - Node Status</title>
+
+  <!-- Leaflet 1.9.4 -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet.Terminator -->
+  <script src="https://unpkg.com/@joergdietrich/leaflet.terminator/L.Terminator.js"></script>
+
+  <!-- JetBrains Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Top status bar -->
+  <header id="status-bar">
+    <div class="status-bar-left">
+      <span class="logo">StarNexus</span>
+    </div>
+    <div class="status-bar-right">
+      <div id="status-counts" class="status-counts">
+        <span class="status-dot online"></span><span id="count-online">0</span> Online
+        <span class="status-dot degraded"></span><span id="count-degraded">0</span> Degraded
+        <span class="status-dot offline"></span><span id="count-offline">0</span> Offline
+      </div>
+      <div class="status-bar-meta">
+        <button id="btn-refresh" class="btn-refresh" title="Refresh">&#x21bb;</button>
+        <span id="last-update">Last update: --</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Error banner -->
+  <div id="error-banner" class="error-banner hidden">&#x26a0; Connection lost, waiting to reconnect...</div>
+
+  <!-- Map container -->
+  <div id="map"></div>
+
+  <!-- JS modules -->
+  <script src="/js/map.js"></script>
+  <script src="/js/nodes.js"></script>
+  <script src="/js/links.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
