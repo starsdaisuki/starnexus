@@ -96,6 +96,8 @@ func (m *Monitor) HandleCommand(command string) string {
 	switch cmd {
 	case "/status":
 		return m.cmdStatus()
+	case "/report":
+		return m.cmdReport()
 	case "/start":
 		return "StarNexus Bot is running."
 	default:
@@ -222,6 +224,34 @@ func (m *Monitor) cmdStatus() string {
 	}
 
 	return sb.String()
+}
+
+// --- /report command ---
+
+func (m *Monitor) cmdReport() string {
+	req, err := http.NewRequest("GET", m.serverURL+"/api/daily-report", nil)
+	if err != nil {
+		return fmt.Sprintf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+m.token)
+
+	resp, err := m.client.Do(req)
+	if err != nil {
+		return fmt.Sprintf("Failed to fetch report: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Sprintf("Server returned %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Report string `json:"report"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return fmt.Sprintf("Failed to decode report: %v", err)
+	}
+	return data.Report
 }
 
 // --- HTTP helpers ---

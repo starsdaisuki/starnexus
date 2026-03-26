@@ -59,7 +59,7 @@ const StarNodes = (() => {
         <div class="node-popup-header">
           <div>
             <div class="node-popup-name">${escapeHtml(node.name)}</div>
-            <div class="node-popup-provider">${escapeHtml(node.provider || 'Unknown')}</div>
+            <div class="node-popup-provider">${escapeHtml(node.provider || 'Unknown')}${node.ip_address ? ' &middot; ' + escapeHtml(node.ip_address) : ''}</div>
           </div>
           <span class="status-badge ${node.status}">${statusLabel[node.status] || 'Unknown'}</span>
         </div>

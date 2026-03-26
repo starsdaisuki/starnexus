@@ -11,7 +11,7 @@ const StarMap = (() => {
       center: [20, 140],
       zoom: 2,
       minZoom: 2,
-      maxZoom: 10,
+      maxZoom: 16,
       zoomControl: true,
       attributionControl: true,
     })

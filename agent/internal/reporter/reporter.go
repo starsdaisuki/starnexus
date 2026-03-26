@@ -10,18 +10,48 @@ import (
 	"time"
 
 	"github.com/starsdaisuki/starnexus/agent/internal/collector"
+	"github.com/starsdaisuki/starnexus/agent/internal/probe"
 )
+
+// ConnReport is the payload for connection data.
+type ConnReport struct {
+	NodeID      string              `json:"node_id"`
+	Connections []collector.ConnInfo `json:"connections"`
+}
+
+// SendConnections posts connection data to the server. No buffering — best effort.
+func (r *Reporter) SendConnections(report ConnReport) {
+	body, err := json.Marshal(report)
+	if err != nil {
+		return
+	}
+
+	req, err := http.NewRequest("POST", r.serverURL+"/api/connections", bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.token)
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+}
 
 const bufferCapacity = 120 // 1 hour at 30s intervals
 
 // Report is the payload sent to the server.
 type Report struct {
-	NodeID    string            `json:"node_id"`
-	Name      string            `json:"name"`
-	Provider  string            `json:"provider"`
-	Latitude  float64           `json:"latitude"`
-	Longitude float64           `json:"longitude"`
-	Metrics   collector.Metrics `json:"metrics"`
+	NodeID    string              `json:"node_id"`
+	Name      string              `json:"name"`
+	Provider  string              `json:"provider"`
+	PublicIP  string              `json:"public_ip,omitempty"`
+	Latitude  float64             `json:"latitude"`
+	Longitude float64             `json:"longitude"`
+	Metrics   collector.Metrics   `json:"metrics"`
+	Links     []probe.LinkResult  `json:"links,omitempty"`
 }
 
 // Reporter handles sending reports to the server with a ring buffer for failures.

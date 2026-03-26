@@ -7,11 +7,16 @@ import (
 )
 
 type Config struct {
-	Port                    int    `yaml:"port"`
-	DBPath                  string `yaml:"db_path"`
-	APIToken                string `yaml:"api_token"`
-	WebDir                  string `yaml:"web_dir"`
-	OfflineThresholdSeconds int    `yaml:"offline_threshold_seconds"`
+	Port                    int     `yaml:"port"`
+	DBPath                  string  `yaml:"db_path"`
+	APIToken                string  `yaml:"api_token"`
+	WebDir                  string  `yaml:"web_dir"`
+	AgentBinaryPath         string  `yaml:"agent_binary_path"`
+	GeoIPDBPath             string  `yaml:"geoip_db_path"`
+	OfflineThresholdSeconds int     `yaml:"offline_threshold_seconds"`
+	BotToken                string  `yaml:"bot_token"`
+	BotChatIDs              []int64 `yaml:"bot_chat_ids"`
+	MistralAPIKey           string  `yaml:"mistral_api_key"`
 }
 
 func Load(path string) (*Config, error) {

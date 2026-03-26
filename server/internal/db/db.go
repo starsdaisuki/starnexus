@@ -35,6 +35,9 @@ func Open(dbPath, schemaPath string) (*DB, error) {
 		return nil, err
 	}
 
+	// Migrate: add ip_address column if missing
+	conn.Exec("ALTER TABLE nodes ADD COLUMN ip_address TEXT")
+
 	return &DB{conn: conn}, nil
 }
 
@@ -48,6 +51,7 @@ type Node struct {
 	ID        string       `json:"id"`
 	Name      string       `json:"name"`
 	Provider  *string      `json:"provider"`
+	IPAddress *string      `json:"ip_address"`
 	Latitude  float64      `json:"latitude"`
 	Longitude float64      `json:"longitude"`
 	Status    string       `json:"status"`
@@ -91,7 +95,7 @@ type StatusHistory struct {
 func (d *DB) GetAllNodes() ([]Node, error) {
 	rows, err := d.conn.Query(`
 		SELECT
-			n.id, n.name, n.provider, n.latitude, n.longitude, n.status, n.last_seen,
+			n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.status, n.last_seen,
 			m.cpu_percent, m.memory_percent, m.disk_percent,
 			m.bandwidth_up, m.bandwidth_down, m.load_avg, m.connections,
 			m.uptime_seconds, m.updated_at
@@ -108,7 +112,7 @@ func (d *DB) GetAllNodes() ([]Node, error) {
 		var n Node
 		var m NodeMetrics
 		err := rows.Scan(
-			&n.ID, &n.Name, &n.Provider, &n.Latitude, &n.Longitude, &n.Status, &n.LastSeen,
+			&n.ID, &n.Name, &n.Provider, &n.IPAddress, &n.Latitude, &n.Longitude, &n.Status, &n.LastSeen,
 			&m.CPUPercent, &m.MemoryPercent, &m.DiskPercent,
 			&m.BandwidthUp, &m.BandwidthDown, &m.LoadAvg, &m.Connections,
 			&m.UptimeSeconds, &m.UpdatedAt,
@@ -125,7 +129,7 @@ func (d *DB) GetAllNodes() ([]Node, error) {
 func (d *DB) GetNode(id string) (*Node, error) {
 	row := d.conn.QueryRow(`
 		SELECT
-			n.id, n.name, n.provider, n.latitude, n.longitude, n.status, n.last_seen,
+			n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.status, n.last_seen,
 			m.cpu_percent, m.memory_percent, m.disk_percent,
 			m.bandwidth_up, m.bandwidth_down, m.load_avg, m.connections,
 			m.uptime_seconds, m.updated_at
@@ -137,7 +141,7 @@ func (d *DB) GetNode(id string) (*Node, error) {
 	var n Node
 	var m NodeMetrics
 	err := row.Scan(
-		&n.ID, &n.Name, &n.Provider, &n.Latitude, &n.Longitude, &n.Status, &n.LastSeen,
+		&n.ID, &n.Name, &n.Provider, &n.IPAddress, &n.Latitude, &n.Longitude, &n.Status, &n.LastSeen,
 		&m.CPUPercent, &m.MemoryPercent, &m.DiskPercent,
 		&m.BandwidthUp, &m.BandwidthDown, &m.LoadAvg, &m.Connections,
 		&m.UptimeSeconds, &m.UpdatedAt,
@@ -235,10 +239,17 @@ func (d *DB) GetHistory(nodeID string) ([]StatusHistory, error) {
 
 // --- Report (upsert node + metrics) ---
 
+type ReportLink struct {
+	TargetNodeID string  `json:"target_node_id"`
+	LatencyMs    float64 `json:"latency_ms"`
+	PacketLoss   float64 `json:"packet_loss"`
+}
+
 type ReportRequest struct {
 	NodeID    string  `json:"node_id"`
 	Name      string  `json:"name"`
 	Provider  string  `json:"provider"`
+	PublicIP  string  `json:"public_ip"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 	Metrics   struct {
@@ -251,6 +262,7 @@ type ReportRequest struct {
 		Connections   int     `json:"connections"`
 		UptimeSeconds int64   `json:"uptime_seconds"`
 	} `json:"metrics"`
+	Links []ReportLink `json:"links"`
 }
 
 // UpsertReport inserts or updates a node and its metrics. Returns the old status (or "" if new node).
@@ -261,18 +273,19 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 	row := d.conn.QueryRow("SELECT status FROM nodes WHERE id = ?", r.NodeID)
 	_ = row.Scan(&oldStatus) // ignore ErrNoRows
 
-	// Upsert node
+	// Upsert node (with ip_address)
 	_, err = d.conn.Exec(`
-		INSERT INTO nodes (id, name, provider, latitude, longitude, status, last_seen)
-		VALUES (?, ?, ?, ?, ?, 'online', ?)
+		INSERT INTO nodes (id, name, provider, ip_address, latitude, longitude, status, last_seen)
+		VALUES (?, ?, ?, ?, ?, ?, 'online', ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			provider = excluded.provider,
+			ip_address = excluded.ip_address,
 			latitude = excluded.latitude,
 			longitude = excluded.longitude,
 			status = 'online',
 			last_seen = excluded.last_seen
-	`, r.NodeID, r.Name, r.Provider, r.Latitude, r.Longitude, now)
+	`, r.NodeID, r.Name, r.Provider, r.PublicIP, r.Latitude, r.Longitude, now)
 	if err != nil {
 		return
 	}
@@ -294,6 +307,39 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 	`, r.NodeID, r.Metrics.CPUPercent, r.Metrics.MemoryPercent, r.Metrics.DiskPercent,
 		r.Metrics.BandwidthUp, r.Metrics.BandwidthDown, r.Metrics.LoadAvg,
 		r.Metrics.Connections, r.Metrics.UptimeSeconds, now)
+	if err != nil {
+		return
+	}
+
+	// Insert raw metrics for time series
+	_, _ = d.conn.Exec(`
+		INSERT INTO metrics_raw (node_id, cpu_percent, memory_percent, disk_percent, bandwidth_up, bandwidth_down, load_avg, connections, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, r.NodeID, r.Metrics.CPUPercent, r.Metrics.MemoryPercent, r.Metrics.DiskPercent,
+		r.Metrics.BandwidthUp, r.Metrics.BandwidthDown, r.Metrics.LoadAvg,
+		r.Metrics.Connections, now)
+
+	// Upsert links
+	for _, link := range r.Links {
+		status := "good"
+		if link.PacketLoss >= 100 || link.LatencyMs < 0 {
+			status = "bad"
+		} else if link.LatencyMs > 150 || link.PacketLoss > 2 {
+			status = "degraded"
+		}
+		_, err = d.conn.Exec(`
+			INSERT INTO links (source_node_id, target_node_id, latency_ms, packet_loss, status, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT(source_node_id, target_node_id) DO UPDATE SET
+				latency_ms = excluded.latency_ms,
+				packet_loss = excluded.packet_loss,
+				status = excluded.status,
+				updated_at = excluded.updated_at
+		`, r.NodeID, link.TargetNodeID, link.LatencyMs, link.PacketLoss, status, now)
+		if err != nil {
+			return
+		}
+	}
 
 	return
 }
@@ -346,10 +392,214 @@ func (d *DB) SetNodeDegraded(nodeID string) error {
 	return err
 }
 
+func (d *DB) DeleteNode(id string) error {
+	_, _ = d.conn.Exec("DELETE FROM node_metrics WHERE node_id = ?", id)
+	_, _ = d.conn.Exec("DELETE FROM links WHERE source_node_id = ? OR target_node_id = ?", id, id)
+	_, _ = d.conn.Exec("DELETE FROM status_history WHERE node_id = ?", id)
+	_, err := d.conn.Exec("DELETE FROM nodes WHERE id = ?", id)
+	return err
+}
+
 func (d *DB) CreateNode(id, name, provider string, lat, lng float64) error {
 	_, err := d.conn.Exec(
 		"INSERT INTO nodes (id, name, provider, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
 		id, name, provider, lat, lng,
 	)
 	return err
+}
+
+// --- Analytics queries ---
+
+type RawMetric struct {
+	CPUPercent    float64
+	MemoryPercent float64
+	BandwidthDown float64
+	CreatedAt     int64
+}
+
+// GetRawMetrics returns raw metrics for a node in a time range.
+func (d *DB) GetRawMetrics(nodeID string, from, to int64) ([]RawMetric, error) {
+	rows, err := d.conn.Query(
+		"SELECT cpu_percent, memory_percent, bandwidth_down, created_at FROM metrics_raw WHERE node_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at",
+		nodeID, from, to,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var metrics []RawMetric
+	for rows.Next() {
+		var m RawMetric
+		if err := rows.Scan(&m.CPUPercent, &m.MemoryPercent, &m.BandwidthDown, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, rows.Err()
+}
+
+// GetRawMetricCount returns number of raw metrics for a node since a timestamp.
+func (d *DB) GetRawMetricCount(nodeID string, since int64) (int, error) {
+	var count int
+	err := d.conn.QueryRow(
+		"SELECT COUNT(*) FROM metrics_raw WHERE node_id = ? AND created_at >= ?",
+		nodeID, since,
+	).Scan(&count)
+	return count, err
+}
+
+// AggregateHourly aggregates raw metrics into hourly buckets for a time range.
+func (d *DB) AggregateHourly(from, to int64) error {
+	_, err := d.conn.Exec(`
+		INSERT OR REPLACE INTO metrics_hourly (node_id, hour, cpu_avg, cpu_max, cpu_stddev, mem_avg, mem_max, mem_stddev, bw_up_avg, bw_down_avg, load_avg, sample_count)
+		SELECT
+			node_id,
+			(created_at / 3600) * 3600 AS hour,
+			AVG(cpu_percent), MAX(cpu_percent),
+			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(cpu_percent * cpu_percent) - AVG(cpu_percent) * AVG(cpu_percent)) ELSE 0 END,
+			AVG(memory_percent), MAX(memory_percent),
+			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(memory_percent * memory_percent) - AVG(memory_percent) * AVG(memory_percent)) ELSE 0 END,
+			AVG(bandwidth_up), AVG(bandwidth_down),
+			AVG(load_avg),
+			COUNT(*)
+		FROM metrics_raw
+		WHERE created_at >= ? AND created_at < ?
+		GROUP BY node_id, hour
+	`, from, to)
+	return err
+}
+
+// AggregateDaily aggregates hourly metrics into daily buckets for a time range.
+func (d *DB) AggregateDaily(from, to int64) error {
+	_, err := d.conn.Exec(`
+		INSERT OR REPLACE INTO metrics_daily (node_id, day, cpu_avg, cpu_max, cpu_stddev, mem_avg, mem_max, mem_stddev, bw_up_avg, bw_down_avg, load_avg, online_seconds, sample_count)
+		SELECT
+			node_id,
+			(hour / 86400) * 86400 AS day,
+			AVG(cpu_avg), MAX(cpu_max),
+			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(cpu_avg * cpu_avg) - AVG(cpu_avg) * AVG(cpu_avg)) ELSE 0 END,
+			AVG(mem_avg), MAX(mem_max),
+			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(mem_avg * mem_avg) - AVG(mem_avg) * AVG(mem_avg)) ELSE 0 END,
+			AVG(bw_up_avg), AVG(bw_down_avg),
+			AVG(load_avg),
+			SUM(sample_count) * 30,
+			SUM(sample_count)
+		FROM metrics_hourly
+		WHERE hour >= ? AND hour < ?
+		GROUP BY node_id, day
+	`, from, to)
+	return err
+}
+
+// PurgeRawMetrics deletes raw metrics older than a timestamp.
+func (d *DB) PurgeRawMetrics(before int64) (int64, error) {
+	result, err := d.conn.Exec("DELETE FROM metrics_raw WHERE created_at < ?", before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// PurgeHourlyMetrics deletes hourly metrics older than a timestamp.
+func (d *DB) PurgeHourlyMetrics(before int64) (int64, error) {
+	result, err := d.conn.Exec("DELETE FROM metrics_hourly WHERE hour < ?", before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// GetNodeIDs returns all node IDs.
+func (d *DB) GetNodeIDs() ([]string, error) {
+	rows, err := d.conn.Query("SELECT id FROM nodes")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// GetNodeName returns the display name for a node.
+func (d *DB) GetNodeName(nodeID string) string {
+	var name string
+	d.conn.QueryRow("SELECT name FROM nodes WHERE id = ?", nodeID).Scan(&name)
+	return name
+}
+
+// GetOnlineSeconds returns seconds a node was online in a time range (based on raw metric count * 30s).
+func (d *DB) GetOnlineSeconds(nodeID string, from, to int64) (int64, error) {
+	var count int64
+	err := d.conn.QueryRow(
+		"SELECT COUNT(*) FROM metrics_raw WHERE node_id = ? AND created_at >= ? AND created_at < ?",
+		nodeID, from, to,
+	).Scan(&count)
+	return count * 30, err
+}
+
+// GetAvgLinkLatency returns average latency for links involving a node.
+func (d *DB) GetAvgLinkLatency(nodeID string) (float64, error) {
+	var avg float64
+	err := d.conn.QueryRow(
+		"SELECT COALESCE(AVG(latency_ms), -1) FROM links WHERE (source_node_id = ? OR target_node_id = ?) AND latency_ms >= 0",
+		nodeID, nodeID,
+	).Scan(&avg)
+	return avg, err
+}
+
+// UpsertNodeScore saves or updates a node's composite score.
+func (d *DB) UpsertNodeScore(nodeID string, availability, latencyScore, stability, composite float64) error {
+	_, err := d.conn.Exec(`
+		INSERT INTO node_scores (node_id, availability, latency_score, stability, composite_score, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(node_id) DO UPDATE SET
+			availability = excluded.availability,
+			latency_score = excluded.latency_score,
+			stability = excluded.stability,
+			composite_score = excluded.composite_score,
+			updated_at = excluded.updated_at
+	`, nodeID, availability, latencyScore, stability, composite, time.Now().Unix())
+	return err
+}
+
+type NodeScore struct {
+	NodeID         string  `json:"node_id"`
+	Availability   float64 `json:"availability"`
+	LatencyScore   float64 `json:"latency_score"`
+	Stability      float64 `json:"stability"`
+	CompositeScore float64 `json:"composite_score"`
+	UpdatedAt      int64   `json:"updated_at"`
+}
+
+// GetAllScores returns all node scores.
+func (d *DB) GetAllScores() ([]NodeScore, error) {
+	rows, err := d.conn.Query("SELECT node_id, availability, latency_score, stability, composite_score, updated_at FROM node_scores ORDER BY composite_score DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scores []NodeScore
+	for rows.Next() {
+		var s NodeScore
+		if err := rows.Scan(&s.NodeID, &s.Availability, &s.LatencyScore, &s.Stability, &s.CompositeScore, &s.UpdatedAt); err != nil {
+			return nil, err
+		}
+		scores = append(scores, s)
+	}
+	return scores, rows.Err()
+}
+
+// Conn exposes the underlying connection for analytics queries.
+func (d *DB) Conn() *sql.DB {
+	return d.conn
 }
