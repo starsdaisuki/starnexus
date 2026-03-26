@@ -83,8 +83,10 @@ const StarConns = (() => {
         totalBytes += (c.total_bytes || 0)
       })
 
-      const color = getColor(first.protocol)
-      const w = calcWeight(totalRate)
+      // Classify: probe/scan vs real traffic
+      const isProbe = totalRate === 0 && totalBytes < 5000
+      const color = isProbe ? '#ff4466' : getColor(first.protocol)
+      const w = isProbe ? 1 : calcWeight(totalRate)
 
       // Use first connection's geo (CDN IPs in same /16 geolocate the same)
       const srcLat = first.src_lat
@@ -116,18 +118,19 @@ const StarConns = (() => {
       const totalStr = fmtBytes(totalBytes)
 
       // Hover tooltip
+      const proto = first.protocol || '?'
+      const typeLabel = isProbe ? ' <span style="color:#ff4466">[probe/scan]</span>' : ''
       let tipHtml = '<div class="link-tooltip">'
       tipHtml += '<b>' + subnetStr + '</b> | ' + city + ', ' + country + '<br>'
-      tipHtml += 'Speed: <b>' + rateStr + '</b> | Total: ' + totalStr + '<br>'
+      tipHtml += proto + ' | <b>' + rateStr + '</b> | ' + totalStr + typeLabel + '<br>'
 
       if (isCF && conns.length > 1) {
         tipHtml += '<br><span style="color:rgba(255,255,255,0.4)">Active IPs:</span><br>'
-        // Sort individual IPs by rate desc
         const sorted = conns.slice().sort((a, b) => (b.rate || 0) - (a.rate || 0))
         sorted.forEach((c, i) => {
           const prefix = i < sorted.length - 1 ? '\u251c ' : '\u2514 '
           tipHtml += '<span style="color:rgba(255,255,255,0.5)">' + prefix + '</span>'
-          tipHtml += c.src_ip + ' | ' + fmtRate(c.rate || 0) + ' | ' + fmtBytes(c.total_bytes || 0) + '<br>'
+          tipHtml += c.src_ip + ' | ' + (c.protocol || '?') + ' | ' + fmtRate(c.rate || 0) + ' | ' + fmtBytes(c.total_bytes || 0) + '<br>'
         })
       }
       tipHtml += '</div>'
@@ -153,11 +156,12 @@ const StarConns = (() => {
         }))
       }
 
-      // Source dot (one per group)
+      // Source dot (one per group, red for probes, cyan for real traffic)
       const dotKey = isCF ? subnet16(first.src_ip) + '-' + city : first.src_ip
       if (!srcDots[dotKey]) {
+        const dotColor = isProbe ? '#ff4466' : '#00ccff'
         layerGroup.addLayer(L.circleMarker([srcLat, srcLng], {
-          radius: 3, color: '#00ccff', fillColor: '#00ccff',
+          radius: 3, color: dotColor, fillColor: dotColor,
           fillOpacity: 0.8, weight: 0, interactive: false,
         }))
         srcDots[dotKey] = true
