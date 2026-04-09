@@ -116,6 +116,9 @@ Real monitoring dashboard accessible via SSH tunnel to the Go server.
 # Build all binaries (linux/amd64)
 make build-all
 
+# Deploy primary server to a VPS
+./scripts/deploy-server.sh <ssh-host>
+
 # Deploy agent to a new VPS (one-liner)
 curl -sSL http://<server>:8900/install.sh | bash -s -- \
   --server http://<server>:8900 \
@@ -127,6 +130,20 @@ curl -sSL http://<server>:8900/install.sh | bash -s -- \
 ssh -L 8900:localhost:8900 <server-host>
 # Then open http://localhost:8900
 ```
+
+## Node Management
+
+Manage monitored nodes from your local machine:
+
+```bash
+./scripts/manage-node.sh add         # Add a node (auto: firewall, agent, probe, panel security)
+./scripts/manage-node.sh remove      # Remove a node (auto: uninstall, clean DB, firewall, probe)
+./scripts/manage-node.sh update-ip   # Node changed IP? Update firewall + probe, keep data
+./scripts/manage-node.sh list        # Show all nodes and link status
+./scripts/manage-node.sh reconfig    # Switch to a different primary server
+```
+
+Primary server config is saved to `~/.starnexus.env` on first run — no repeated prompts.
 
 ## License
 
