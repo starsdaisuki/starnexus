@@ -9,9 +9,9 @@
     "deploy": "wrangler pages deploy public"
   },
   "devDependencies": {
-    "wrangler": "^3",
-    "@cloudflare/workers-types": "^4",
-    "hono": "^4",
-    "typescript": "^5"
+    "@cloudflare/workers-types": "^4.20260409.1",
+    "hono": "^4.12.12",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.81.0"
   }
 }
