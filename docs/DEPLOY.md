@@ -414,7 +414,31 @@ curl -s http://localhost:8900/api/nodes
 # The new node should appear in the list
 ```
 
-### 5d. Add link probing (optional)
+### 5d. Update existing agents safely
+
+For existing nodes, use the local sync helper instead of manually stopping and copying binaries:
+
+```bash
+# From your local repo checkout:
+./scripts/sync-agent.sh sonet lisahost
+```
+
+The script:
+- Builds a Linux amd64 agent locally
+- Uploads to `/root/starnexus/starnexus-agent.new`
+- Backs up the old remote binary as `starnexus-agent.prev.<timestamp>`
+- Restarts only `starnexus-agent`
+- Leaves remote `config.yaml`, `agent-config.yaml`, GeoIP data, and proxy services unchanged
+
+Useful options:
+
+```bash
+./scripts/sync-agent.sh --install-dir /opt/starnexus --service starnexus-agent vps-alias
+./scripts/sync-agent.sh --binary ./bin/starnexus-agent vps-alias
+./scripts/sync-agent.sh --no-build vps-alias
+```
+
+### 5e. Add link probing (optional)
 
 To measure latency between nodes, edit `~/starnexus/config.yaml` on the new VPS:
 
@@ -564,10 +588,8 @@ scp bin/starnexus-server bin/starnexus-agent bin/starnexus-bot SERVER:~/starnexu
 scp bin/starnexus-agent SERVER:~/starnexus/bin/
 ssh SERVER "systemctl start starnexus-server && sleep 2 && systemctl start starnexus-agent && systemctl start starnexus-bot"
 
-# Update agent on other VPS:
-ssh OTHER_VPS "systemctl stop starnexus-agent"
-scp bin/starnexus-agent OTHER_VPS:~/starnexus/
-ssh OTHER_VPS "systemctl start starnexus-agent"
+# Update agent on other VPS without changing config:
+./scripts/sync-agent.sh OTHER_VPS
 ```
 
 ### Backup database
