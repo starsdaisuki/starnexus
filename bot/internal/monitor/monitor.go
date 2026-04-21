@@ -6,7 +6,10 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/starsdaisuki/starnexus/bot/internal/telegram"
@@ -123,6 +126,17 @@ type nodeDetailsResponse struct {
 	Events []eventSummary `json:"events"`
 }
 
+type chatPreference struct {
+	Subscribed         bool  `json:"subscribed"`
+	MutedUntil         int64 `json:"muted_until"`
+	DailySummary       bool  `json:"daily_summary"`
+	LastDailySummaryAt int64 `json:"last_daily_summary_at,omitempty"`
+}
+
+type preferenceState struct {
+	Chats map[string]chatPreference `json:"chats"`
+}
+
 // Monitor polls the server and sends Telegram alerts on status changes.
 type Monitor struct {
 	serverURL string
@@ -136,16 +150,24 @@ type Monitor struct {
 	// Heartbeat state
 	heartbeatFailures int
 	heartbeatAlerted  bool
+
+	prefMu    sync.Mutex
+	prefs     map[int64]chatPreference
+	statePath string
 }
 
 func New(serverURL, apiToken string, bot *telegram.Bot) *Monitor {
-	return &Monitor{
+	monitor := &Monitor{
 		serverURL:  serverURL,
 		token:      apiToken,
 		bot:        bot,
 		client:     &http.Client{Timeout: 10 * time.Second},
 		lastStatus: make(map[string]string),
+		prefs:      make(map[int64]chatPreference),
+		statePath:  "starnexus-bot-state.json",
 	}
+	monitor.loadPreferences()
+	return monitor
 }
 
 // StartPolling checks for status changes every interval. Blocks until stop is closed.
@@ -181,8 +203,26 @@ func (m *Monitor) StartHeartbeat(intervalSeconds int, stop <-chan struct{}) {
 	}
 }
 
+// StartDailySummary sends one analytics summary per subscribed chat near 09:00 UTC+8.
+func (m *Monitor) StartDailySummary(intervalSeconds int, stop <-chan struct{}) {
+	if intervalSeconds <= 0 {
+		intervalSeconds = 3600
+	}
+	ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			m.dailySummary()
+		case <-stop:
+			return
+		}
+	}
+}
+
 // HandleCommand processes a /command and returns the reply text.
-func (m *Monitor) HandleCommand(command string) string {
+func (m *Monitor) HandleCommand(chatID int64, command string) string {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
 		return ""
@@ -200,6 +240,18 @@ func (m *Monitor) HandleCommand(command string) string {
 		return m.cmdEvents()
 	case "/node":
 		return m.cmdNode(fields[1:])
+	case "/mute":
+		return m.cmdMute(chatID, fields[1:])
+	case "/unmute":
+		return m.cmdUnmute(chatID)
+	case "/subscribe":
+		return m.cmdSubscribe(chatID)
+	case "/unsubscribe":
+		return m.cmdUnsubscribe(chatID)
+	case "/daily":
+		return m.cmdDaily(chatID, fields[1:])
+	case "/prefs":
+		return m.cmdPrefs(chatID)
 	case "/help":
 		return m.cmdHelp()
 	case "/start":
@@ -234,7 +286,7 @@ func (m *Monitor) poll() {
 		// Status changed — send alert
 		msg := m.formatStatusChange(node, old)
 		log.Printf("Status change: %s %s -> %s", node.ID, old, node.Status)
-		if err := m.bot.SendMessage(msg); err != nil {
+		if err := m.sendAlert(msg); err != nil {
 			log.Printf("Failed to send alert: %v", err)
 		}
 	}
@@ -285,7 +337,7 @@ func (m *Monitor) heartbeat() {
 
 		if m.heartbeatFailures >= 3 && !m.heartbeatAlerted {
 			msg := "\xf0\x9f\x94\xb4 <b>Server unreachable!</b>\n3 consecutive heartbeat failures."
-			if sendErr := m.bot.SendMessage(msg); sendErr != nil {
+			if sendErr := m.sendAlert(msg); sendErr != nil {
 				log.Printf("Failed to send heartbeat alert: %v", sendErr)
 			}
 			m.heartbeatAlerted = true
@@ -296,7 +348,7 @@ func (m *Monitor) heartbeat() {
 	// Server is reachable
 	if m.heartbeatAlerted {
 		msg := "\xf0\x9f\x9f\xa2 <b>Server recovered.</b>\nHeartbeat restored."
-		if sendErr := m.bot.SendMessage(msg); sendErr != nil {
+		if sendErr := m.sendAlert(msg); sendErr != nil {
 			log.Printf("Failed to send recovery alert: %v", sendErr)
 		}
 	}
@@ -488,8 +540,94 @@ func (m *Monitor) cmdHelp() string {
 		"/analytics - reliability, anomaly, experiment summary",
 		"/events - latest events",
 		"/node &lt;id-or-name&gt; - node detail summary",
+		"/mute [30m|2h|1d] - pause proactive alerts for this chat",
+		"/unmute - resume proactive alerts",
+		"/subscribe - enable proactive alerts",
+		"/unsubscribe - disable proactive alerts",
+		"/daily on|off - toggle daily analytics summary",
+		"/prefs - show this chat's alert preferences",
 		"/report - daily AI report",
 	}, "\n")
+}
+
+// --- Preference commands ---
+
+func (m *Monitor) cmdMute(chatID int64, args []string) string {
+	duration := time.Hour
+	if len(args) > 0 {
+		parsed, err := parseMuteDuration(args[0])
+		if err != nil {
+			return "Usage: /mute [30m|2h|1d]"
+		}
+		duration = parsed
+	}
+	if duration > 7*24*time.Hour {
+		duration = 7 * 24 * time.Hour
+	}
+
+	pref := m.preference(chatID)
+	pref.MutedUntil = time.Now().Add(duration).Unix()
+	m.setPreference(chatID, pref)
+	return fmt.Sprintf("Muted proactive alerts for %s. Commands still work.", formatDuration(duration))
+}
+
+func (m *Monitor) cmdUnmute(chatID int64) string {
+	pref := m.preference(chatID)
+	pref.MutedUntil = 0
+	m.setPreference(chatID, pref)
+	return "Proactive alerts resumed for this chat."
+}
+
+func (m *Monitor) cmdSubscribe(chatID int64) string {
+	pref := m.preference(chatID)
+	pref.Subscribed = true
+	m.setPreference(chatID, pref)
+	return "This chat is subscribed to proactive StarNexus alerts."
+}
+
+func (m *Monitor) cmdUnsubscribe(chatID int64) string {
+	pref := m.preference(chatID)
+	pref.Subscribed = false
+	m.setPreference(chatID, pref)
+	return "This chat is unsubscribed from proactive alerts. Commands still work."
+}
+
+func (m *Monitor) cmdDaily(chatID int64, args []string) string {
+	if len(args) == 0 {
+		pref := m.preference(chatID)
+		if pref.DailySummary {
+			return "Daily analytics summary is on. Use /daily off to disable it."
+		}
+		return "Daily analytics summary is off. Use /daily on to enable it."
+	}
+
+	pref := m.preference(chatID)
+	switch strings.ToLower(args[0]) {
+	case "on", "yes", "true", "1":
+		pref.DailySummary = true
+		m.setPreference(chatID, pref)
+		return "Daily analytics summary enabled for this chat."
+	case "off", "no", "false", "0":
+		pref.DailySummary = false
+		m.setPreference(chatID, pref)
+		return "Daily analytics summary disabled for this chat."
+	default:
+		return "Usage: /daily on|off"
+	}
+}
+
+func (m *Monitor) cmdPrefs(chatID int64) string {
+	pref := m.preference(chatID)
+	muted := "no"
+	if pref.MutedUntil > time.Now().Unix() {
+		muted = fmt.Sprintf("until %s", time.Unix(pref.MutedUntil, 0).Format(time.RFC3339))
+	}
+	return fmt.Sprintf(
+		"<b>StarNexus Preferences</b>\nSubscribed: %t\nMuted: %s\nDaily summary: %t",
+		pref.Subscribed,
+		muted,
+		pref.DailySummary,
+	)
 }
 
 // --- /report command ---
@@ -602,6 +740,122 @@ func (m *Monitor) fetchNodeDetails(nodeID string) (*nodeDetailsResponse, error) 
 	return &data, nil
 }
 
+func (m *Monitor) dailySummary() {
+	now := time.Now().UTC()
+	windowStart := time.Date(now.Year(), now.Month(), now.Day(), 1, 0, 0, 0, time.UTC)
+	if now.Before(windowStart) {
+		return
+	}
+
+	message := ""
+	for _, chatID := range m.bot.ChatIDs() {
+		pref := m.preference(chatID)
+		if !pref.Subscribed || !pref.DailySummary || pref.MutedUntil > time.Now().Unix() || pref.LastDailySummaryAt >= windowStart.Unix() {
+			continue
+		}
+		if message == "" {
+			message = m.cmdAnalytics()
+		}
+		if err := m.bot.SendMessageTo(chatID, "<b>StarNexus Daily Summary</b>\n"+message); err != nil {
+			log.Printf("Failed to send daily summary to %d: %v", chatID, err)
+			continue
+		}
+		pref.LastDailySummaryAt = time.Now().Unix()
+		m.setPreference(chatID, pref)
+	}
+}
+
+func (m *Monitor) sendAlert(text string) error {
+	var lastErr error
+	for _, chatID := range m.bot.ChatIDs() {
+		if !m.shouldDeliverAlert(chatID) {
+			continue
+		}
+		if err := m.bot.SendMessageTo(chatID, text); err != nil {
+			log.Printf("send alert to %d failed: %v", chatID, err)
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+func (m *Monitor) shouldDeliverAlert(chatID int64) bool {
+	pref := m.preference(chatID)
+	return pref.Subscribed && pref.MutedUntil <= time.Now().Unix()
+}
+
+func (m *Monitor) preference(chatID int64) chatPreference {
+	m.prefMu.Lock()
+	defer m.prefMu.Unlock()
+	if pref, ok := m.prefs[chatID]; ok {
+		return pref
+	}
+	return defaultPreference()
+}
+
+func (m *Monitor) setPreference(chatID int64, pref chatPreference) {
+	m.prefMu.Lock()
+	m.prefs[chatID] = pref
+	m.prefMu.Unlock()
+	m.savePreferences()
+}
+
+func defaultPreference() chatPreference {
+	return chatPreference{
+		Subscribed:   true,
+		DailySummary: true,
+	}
+}
+
+func (m *Monitor) loadPreferences() {
+	data, err := os.ReadFile(m.statePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("Failed to read bot preference state: %v", err)
+		}
+		return
+	}
+
+	var state preferenceState
+	if err := json.Unmarshal(data, &state); err != nil {
+		log.Printf("Failed to decode bot preference state: %v", err)
+		return
+	}
+
+	m.prefMu.Lock()
+	defer m.prefMu.Unlock()
+	for key, pref := range state.Chats {
+		chatID, err := strconv.ParseInt(key, 10, 64)
+		if err != nil {
+			continue
+		}
+		m.prefs[chatID] = pref
+	}
+}
+
+func (m *Monitor) savePreferences() {
+	m.prefMu.Lock()
+	state := preferenceState{Chats: make(map[string]chatPreference, len(m.prefs))}
+	for chatID, pref := range m.prefs {
+		state.Chats[strconv.FormatInt(chatID, 10)] = pref
+	}
+	m.prefMu.Unlock()
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		log.Printf("Failed to encode bot preference state: %v", err)
+		return
+	}
+	tmp := m.statePath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		log.Printf("Failed to write bot preference state: %v", err)
+		return
+	}
+	if err := os.Rename(tmp, m.statePath); err != nil {
+		log.Printf("Failed to replace bot preference state: %v", err)
+	}
+}
+
 func normalizeCommand(command string) string {
 	command = strings.ToLower(command)
 	if at := strings.Index(command, "@"); at >= 0 {
@@ -654,6 +908,30 @@ func formatSeconds(value float64) string {
 		return fmt.Sprintf("%.0fs", value)
 	}
 	return fmt.Sprintf("%.1fm", value/60)
+}
+
+func parseMuteDuration(value string) (time.Duration, error) {
+	if strings.HasSuffix(value, "d") {
+		days, err := strconv.Atoi(strings.TrimSuffix(value, "d"))
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	return time.ParseDuration(value)
+}
+
+func formatDuration(value time.Duration) string {
+	if value >= 24*time.Hour && value%(24*time.Hour) == 0 {
+		return fmt.Sprintf("%dd", int(value/(24*time.Hour)))
+	}
+	if value >= time.Hour && value%time.Hour == 0 {
+		return fmt.Sprintf("%dh", int(value/time.Hour))
+	}
+	if value >= time.Minute && value%time.Minute == 0 {
+		return fmt.Sprintf("%dm", int(value/time.Minute))
+	}
+	return value.String()
 }
 
 func minInt(a, b int) int {

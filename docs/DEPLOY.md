@@ -592,6 +592,26 @@ ssh SERVER "systemctl start starnexus-server && sleep 2 && systemctl start starn
 ./scripts/sync-agent.sh OTHER_VPS
 ```
 
+### Telegram bot commands
+
+The bot accepts commands only from `chat_ids` in `bot-config.yaml`.
+
+```text
+/status              Fleet status and nodes
+/analytics           Reliability, anomaly, and experiment summary
+/events              Recent events
+/node <id-or-name>   Node detail summary
+/report              Daily AI report
+/mute [30m|2h|1d]    Pause proactive alerts for this chat
+/unmute              Resume proactive alerts
+/subscribe           Enable proactive alerts
+/unsubscribe         Disable proactive alerts for this chat
+/daily on|off        Toggle the 09:00 UTC+8 analytics summary
+/prefs               Show this chat's alert preferences
+```
+
+Preferences are stored in `starnexus-bot-state.json` in the bot working directory. Commands still work while a chat is muted or unsubscribed; only proactive alerts and daily summaries are filtered.
+
 ### Backup database
 
 ```bash
