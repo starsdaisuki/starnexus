@@ -3,6 +3,7 @@ package monitor
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"strings"
@@ -13,10 +14,20 @@ import (
 
 // Node matches the server's /api/nodes response shape.
 type Node struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Provider string `json:"provider"`
-	Status   string `json:"status"`
+	ID       string       `json:"id"`
+	Name     string       `json:"name"`
+	Provider string       `json:"provider"`
+	Status   string       `json:"status"`
+	Metrics  *NodeMetrics `json:"metrics,omitempty"`
+}
+
+type NodeMetrics struct {
+	CPUPercent    *float64 `json:"cpu_percent"`
+	MemoryPercent *float64 `json:"memory_percent"`
+	DiskPercent   *float64 `json:"disk_percent"`
+	BandwidthDown *float64 `json:"bandwidth_down"`
+	LoadAvg       *float64 `json:"load_avg"`
+	Connections   *int     `json:"connections"`
 }
 
 type nodesResponse struct {
@@ -29,6 +40,83 @@ type statusResponse struct {
 	Degraded int `json:"degraded"`
 	Offline  int `json:"offline"`
 	Unknown  int `json:"unknown"`
+}
+
+type dashboardResponse struct {
+	Status      statusResponse        `json:"status"`
+	Nodes       []Node                `json:"nodes"`
+	Events      []eventSummary        `json:"events"`
+	Fleet       fleetAnalytics        `json:"fleet_analytics"`
+	Reliability reliabilityAnalytics  `json:"reliability_analytics"`
+	GroundTruth *groundTruthAnalytics `json:"ground_truth,omitempty"`
+}
+
+type fleetAnalytics struct {
+	Summary      string             `json:"summary"`
+	NodeInsights []fleetNodeInsight `json:"node_insights"`
+}
+
+type fleetNodeInsight struct {
+	NodeID    string  `json:"node_id"`
+	NodeName  string  `json:"node_name"`
+	RiskLevel string  `json:"risk_level"`
+	Score     float64 `json:"composite_score"`
+	Summary   string  `json:"summary"`
+}
+
+type reliabilityAnalytics struct {
+	FleetOperationalScore float64           `json:"fleet_operational_score"`
+	FleetAvailability     float64           `json:"fleet_availability_percent"`
+	FleetDataCoverage     float64           `json:"fleet_data_coverage_percent"`
+	IncidentCount         int               `json:"incident_count"`
+	Summary               string            `json:"summary"`
+	Nodes                 []reliabilityNode `json:"nodes"`
+}
+
+type reliabilityNode struct {
+	NodeID              string   `json:"node_id"`
+	NodeName            string   `json:"node_name"`
+	Status              string   `json:"status"`
+	OperationalScore    float64  `json:"operational_score"`
+	AvailabilityPercent float64  `json:"availability_percent"`
+	DataCoveragePercent float64  `json:"data_coverage_percent"`
+	IncidentCount       int      `json:"incident_count"`
+	DataQuality         string   `json:"data_quality"`
+	Recommendation      string   `json:"recommendation"`
+	Signals             []string `json:"signals"`
+}
+
+type groundTruthAnalytics struct {
+	ExperimentCount       int     `json:"experiment_count"`
+	DetectionRatePercent  float64 `json:"detection_rate_percent"`
+	MeanDetectionDelaySec float64 `json:"mean_detection_delay_seconds"`
+	RecoveryRatePercent   float64 `json:"recovery_rate_percent"`
+	MeanRecoveryDelaySec  float64 `json:"mean_recovery_delay_seconds"`
+}
+
+type eventSummary struct {
+	NodeID    *string `json:"node_id,omitempty"`
+	NodeName  *string `json:"node_name,omitempty"`
+	Type      string  `json:"type"`
+	Severity  string  `json:"severity"`
+	Title     string  `json:"title"`
+	Body      *string `json:"body,omitempty"`
+	CreatedAt int64   `json:"created_at"`
+}
+
+type nodeDetailsResponse struct {
+	Node  Node `json:"node"`
+	Score *struct {
+		CompositeScore float64 `json:"composite_score"`
+		Availability   float64 `json:"availability"`
+		Stability      float64 `json:"stability"`
+	} `json:"score,omitempty"`
+	Analytics *struct {
+		RiskLevel  string   `json:"risk_level"`
+		Summary    string   `json:"summary"`
+		Highlights []string `json:"highlights"`
+	} `json:"analytics,omitempty"`
+	Events []eventSummary `json:"events"`
 }
 
 // Monitor polls the server and sends Telegram alerts on status changes.
@@ -91,15 +179,27 @@ func (m *Monitor) StartHeartbeat(intervalSeconds int, stop <-chan struct{}) {
 
 // HandleCommand processes a /command and returns the reply text.
 func (m *Monitor) HandleCommand(command string) string {
-	cmd := strings.Fields(command)[0]
+	fields := strings.Fields(command)
+	if len(fields) == 0 {
+		return ""
+	}
+	cmd := normalizeCommand(fields[0])
 
 	switch cmd {
 	case "/status":
 		return m.cmdStatus()
 	case "/report":
 		return m.cmdReport()
+	case "/analytics":
+		return m.cmdAnalytics()
+	case "/events":
+		return m.cmdEvents()
+	case "/node":
+		return m.cmdNode(fields[1:])
+	case "/help":
+		return m.cmdHelp()
 	case "/start":
-		return "StarNexus Bot is running."
+		return m.cmdHelp()
 	default:
 		return ""
 	}
@@ -226,6 +326,166 @@ func (m *Monitor) cmdStatus() string {
 	return sb.String()
 }
 
+// --- /analytics command ---
+
+func (m *Monitor) cmdAnalytics() string {
+	dashboard, err := m.fetchDashboard()
+	if err != nil {
+		return fmt.Sprintf("Failed to fetch dashboard analytics: %v", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<b>StarNexus Analytics</b>\n")
+	sb.WriteString(fmt.Sprintf(
+		"Fleet: %d total | %d online | %d degraded | %d offline\n",
+		dashboard.Status.Total,
+		dashboard.Status.Online,
+		dashboard.Status.Degraded,
+		dashboard.Status.Offline,
+	))
+	sb.WriteString(fmt.Sprintf(
+		"Reliability: %.0f/100 | coverage %.0f%% | incidents %d\n",
+		dashboard.Reliability.FleetOperationalScore,
+		dashboard.Reliability.FleetDataCoverage,
+		dashboard.Reliability.IncidentCount,
+	))
+	if dashboard.GroundTruth != nil && dashboard.GroundTruth.ExperimentCount > 0 {
+		sb.WriteString(fmt.Sprintf(
+			"Experiments: %d | detection %.0f%% | mean delay %s\n",
+			dashboard.GroundTruth.ExperimentCount,
+			dashboard.GroundTruth.DetectionRatePercent,
+			formatSeconds(dashboard.GroundTruth.MeanDetectionDelaySec),
+		))
+	}
+
+	if dashboard.Fleet.Summary != "" {
+		sb.WriteString("\n")
+		sb.WriteString(escapeHTML(dashboard.Fleet.Summary))
+		sb.WriteString("\n")
+	}
+
+	if len(dashboard.Reliability.Nodes) > 0 {
+		sb.WriteString("\n<b>Top Watch</b>\n")
+		for _, node := range dashboard.Reliability.Nodes[:minInt(3, len(dashboard.Reliability.Nodes))] {
+			sb.WriteString(fmt.Sprintf(
+				"%s <b>%s</b>: %.0f/100, %s, %d incident(s)\n",
+				statusIcon(node.Status),
+				escapeHTML(node.NodeName),
+				node.OperationalScore,
+				escapeHTML(node.DataQuality),
+				node.IncidentCount,
+			))
+			if node.Recommendation != "" {
+				sb.WriteString(fmt.Sprintf("  %s\n", escapeHTML(node.Recommendation)))
+			}
+		}
+	}
+
+	return strings.TrimSpace(sb.String())
+}
+
+// --- /events command ---
+
+func (m *Monitor) cmdEvents() string {
+	dashboard, err := m.fetchDashboard()
+	if err != nil {
+		return fmt.Sprintf("Failed to fetch events: %v", err)
+	}
+	if len(dashboard.Events) == 0 {
+		return "No recent events recorded."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<b>Recent Events</b>\n")
+	for _, event := range dashboard.Events[:minInt(6, len(dashboard.Events))] {
+		nodeName := "system"
+		if event.NodeName != nil && *event.NodeName != "" {
+			nodeName = *event.NodeName
+		} else if event.NodeID != nil && *event.NodeID != "" {
+			nodeName = *event.NodeID
+		}
+		sb.WriteString(fmt.Sprintf(
+			"%s <b>%s</b> [%s]\n%s\n",
+			severityIcon(event.Severity),
+			escapeHTML(nodeName),
+			escapeHTML(event.Severity),
+			escapeHTML(event.Title),
+		))
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+// --- /node command ---
+
+func (m *Monitor) cmdNode(args []string) string {
+	if len(args) == 0 {
+		return "Usage: /node <node-id-or-name>"
+	}
+
+	query := strings.ToLower(strings.Join(args, " "))
+	nodes, err := m.fetchNodes()
+	if err != nil {
+		return fmt.Sprintf("Failed to fetch nodes: %v", err)
+	}
+
+	var match *Node
+	for i := range nodes {
+		if strings.EqualFold(nodes[i].ID, query) || strings.Contains(strings.ToLower(nodes[i].Name), query) {
+			match = &nodes[i]
+			break
+		}
+	}
+	if match == nil {
+		return fmt.Sprintf("No node matched %q.", query)
+	}
+
+	detail, err := m.fetchNodeDetails(match.ID)
+	if err != nil {
+		return fmt.Sprintf("Failed to fetch node details: %v", err)
+	}
+
+	var sb strings.Builder
+	node := detail.Node
+	sb.WriteString(fmt.Sprintf("%s <b>%s</b> (%s)\n", statusIcon(node.Status), escapeHTML(node.Name), escapeHTML(node.Provider)))
+	sb.WriteString(fmt.Sprintf("ID: <code>%s</code>\n", escapeHTML(node.ID)))
+	if node.Metrics != nil {
+		sb.WriteString(fmt.Sprintf(
+			"CPU %s | Mem %s | Disk %s | Down %s | Conn %s\n",
+			formatPercentPtr(node.Metrics.CPUPercent),
+			formatPercentPtr(node.Metrics.MemoryPercent),
+			formatPercentPtr(node.Metrics.DiskPercent),
+			formatFloatPtr(node.Metrics.BandwidthDown, "KB/s"),
+			formatIntPtr(node.Metrics.Connections),
+		))
+	}
+	if detail.Score != nil {
+		sb.WriteString(fmt.Sprintf("Score %.0f/100 | availability %.0f%% | stability %.0f%%\n", detail.Score.CompositeScore, detail.Score.Availability, detail.Score.Stability))
+	}
+	if detail.Analytics != nil {
+		sb.WriteString(fmt.Sprintf("Risk: %s\n%s\n", escapeHTML(detail.Analytics.RiskLevel), escapeHTML(detail.Analytics.Summary)))
+		if len(detail.Analytics.Highlights) > 0 {
+			sb.WriteString(fmt.Sprintf("Top signal: %s\n", escapeHTML(detail.Analytics.Highlights[0])))
+		}
+	}
+	if len(detail.Events) > 0 {
+		sb.WriteString(fmt.Sprintf("Recent event: %s\n", escapeHTML(detail.Events[0].Title)))
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+// --- /help command ---
+
+func (m *Monitor) cmdHelp() string {
+	return strings.Join([]string{
+		"<b>StarNexus Bot</b>",
+		"/status - fleet status and nodes",
+		"/analytics - reliability, anomaly, experiment summary",
+		"/events - latest events",
+		"/node &lt;id-or-name&gt; - node detail summary",
+		"/report - daily AI report",
+	}, "\n")
+}
+
 // --- /report command ---
 
 func (m *Monitor) cmdReport() string {
@@ -290,4 +550,109 @@ func (m *Monitor) fetchStatus() (*statusResponse, error) {
 		return nil, err
 	}
 	return &data, nil
+}
+
+func (m *Monitor) fetchDashboard() (*dashboardResponse, error) {
+	req, err := http.NewRequest("GET", m.serverURL+"/api/dashboard", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := m.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
+	}
+
+	var data dashboardResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func (m *Monitor) fetchNodeDetails(nodeID string) (*nodeDetailsResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/nodes/%s/details?hours=24", m.serverURL, nodeID), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := m.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
+	}
+
+	var data nodeDetailsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func normalizeCommand(command string) string {
+	command = strings.ToLower(command)
+	if at := strings.Index(command, "@"); at >= 0 {
+		command = command[:at]
+	}
+	return command
+}
+
+func escapeHTML(value string) string {
+	return html.EscapeString(value)
+}
+
+func severityIcon(severity string) string {
+	switch severity {
+	case "critical":
+		return "\xf0\x9f\x94\xb4"
+	case "warning":
+		return "\xf0\x9f\x9f\xa1"
+	default:
+		return "\xe2\x9a\xaa"
+	}
+}
+
+func formatPercentPtr(value *float64) string {
+	if value == nil {
+		return "--"
+	}
+	return fmt.Sprintf("%.0f%%", *value)
+}
+
+func formatFloatPtr(value *float64, unit string) string {
+	if value == nil {
+		return "--"
+	}
+	return fmt.Sprintf("%.1f %s", *value, unit)
+}
+
+func formatIntPtr(value *int) string {
+	if value == nil {
+		return "--"
+	}
+	return fmt.Sprintf("%d", *value)
+}
+
+func formatSeconds(value float64) string {
+	if value <= 0 {
+		return "--"
+	}
+	if value < 60 {
+		return fmt.Sprintf("%.0fs", value)
+	}
+	return fmt.Sprintf("%.1fm", value/60)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
