@@ -7,12 +7,12 @@ import (
 )
 
 type Config struct {
-	TelegramToken            string `yaml:"telegram_token"`
+	TelegramToken            string  `yaml:"telegram_token"`
 	ChatIDs                  []int64 `yaml:"chat_ids"`
-	ServerURL                string `yaml:"server_url"`
-	APIToken                 string `yaml:"api_token"`
-	PollIntervalSeconds      int    `yaml:"poll_interval_seconds"`
-	HeartbeatIntervalSeconds int    `yaml:"heartbeat_interval_seconds"`
+	ServerURL                string  `yaml:"server_url"`
+	APIToken                 string  `yaml:"api_token"`
+	PollIntervalSeconds      int     `yaml:"poll_interval_seconds"`
+	HeartbeatIntervalSeconds int     `yaml:"heartbeat_interval_seconds"`
 }
 
 func Load(path string) (*Config, error) {

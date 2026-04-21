@@ -2,6 +2,8 @@ port: 8900
 db_path: "./starnexus.db"
 api_token: "CHANGE_ME"
 web_dir: "./web"
+node_locations_path: "./node-locations.yaml"
+experiment_labels_path: "./analysis-output/experiments.jsonl"
 agent_binary_path: "./bin/starnexus-agent"
 geoip_db_path: "./bin/GeoLite2-City.mmdb"
 offline_threshold_seconds: 90

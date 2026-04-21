@@ -155,7 +155,7 @@ scp -q "$BIN_DIR/starnexus-agent" "$SSH_HOST:~/starnexus/bin/"
 
 echo "  Uploading schema and web files..."
 scp -q "$SCRIPT_DIR/server/schema.sql" "$SSH_HOST:~/starnexus/"
-scp -qr "$SCRIPT_DIR/server/web/"* "$SSH_HOST:~/starnexus/web/"
+scp -qr "$SCRIPT_DIR/web/public/"* "$SSH_HOST:~/starnexus/web/"
 
 echo "  Downloading GeoIP database on server..."
 ssh "$SSH_HOST" "cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/ && echo '  GeoIP: $(ls -lh GeoLite2-City.mmdb | awk \"{print \\$5}\")'"

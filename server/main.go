@@ -15,6 +15,7 @@ import (
 	"github.com/starsdaisuki/starnexus/server/internal/api"
 	"github.com/starsdaisuki/starnexus/server/internal/config"
 	"github.com/starsdaisuki/starnexus/server/internal/db"
+	"github.com/starsdaisuki/starnexus/server/internal/locations"
 )
 
 func main() {
@@ -40,6 +41,17 @@ func main() {
 	}
 	defer database.Close()
 
+	nodeLocations, err := locations.Load(cfg.NodeLocationsPath)
+	if err != nil {
+		log.Fatalf("Failed to load node location overrides: %v", err)
+	}
+	if overrides := nodeLocations.DBOverrides(); len(overrides) > 0 {
+		if err := database.ApplyLocationOverrides(overrides); err != nil {
+			log.Fatalf("Failed to apply node location overrides: %v", err)
+		}
+		log.Printf("Loaded %d node location override(s)", len(overrides))
+	}
+
 	// Offline monitor
 	monitor := alert.NewMonitor(database, cfg.OfflineThresholdSeconds)
 	monitor.Start()
@@ -52,13 +64,32 @@ func main() {
 	defer scheduler.Stop()
 
 	// HTTP server
-	server := api.New(database, cfg.APIToken, cfg.WebDir, cfg.AgentBinaryPath, cfg.GeoIPDBPath)
+	server := api.New(database, cfg.APIToken, resolveWebDir(cfg.WebDir), cfg.AgentBinaryPath, cfg.GeoIPDBPath, cfg.ExperimentLabelsPath, nodeLocations)
 	server.SetReportGenerator(scheduler)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("StarNexus server starting on %s", addr)
 	if err := http.ListenAndServe(addr, server); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+func resolveWebDir(configured string) string {
+	candidates := []string{}
+	if configured != "" {
+		candidates = append(candidates, configured)
+	}
+	candidates = append(candidates, "../web/public", "./web")
+
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+
+	return configured
 }
 
 // buildAlertFunc creates an alert function that sends messages to the Telegram bot

@@ -26,11 +26,15 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	locationSource := "manual"
+
 	// Auto-detect geolocation if lat/lng not set
 	if cfg.Latitude == 0 && cfg.Longitude == 0 {
+		locationSource = "geoip"
 		log.Println("Latitude/longitude not set, auto-detecting via ip-api.com...")
 		geo, err := geoip.Detect()
 		if err != nil {
+			locationSource = "unknown"
 			log.Printf("Geolocation auto-detect failed: %v (set manually in config)", err)
 		} else {
 			cfg.Latitude = geo.Latitude
@@ -56,7 +60,7 @@ func main() {
 	// Metrics report loop (30s)
 	metricsTicker := time.NewTicker(time.Duration(cfg.ReportIntervalSeconds) * time.Second)
 	defer metricsTicker.Stop()
-	collectAndReport(cfg, rep)
+	collectAndReport(cfg, rep, locationSource)
 
 	// Connection collector (5s) — only if GeoIP DB exists
 	var connCollector *collector.ConnCollector
@@ -99,7 +103,7 @@ func main() {
 	for {
 		select {
 		case <-metricsTicker.C:
-			collectAndReport(cfg, rep)
+			collectAndReport(cfg, rep, locationSource)
 		case <-stop:
 			log.Println("Shutting down agent")
 			close(done)
@@ -108,7 +112,7 @@ func main() {
 	}
 }
 
-func collectAndReport(cfg *config.Config, rep *reporter.Reporter) {
+func collectAndReport(cfg *config.Config, rep *reporter.Reporter, locationSource string) {
 	metrics, err := collector.Collect()
 	if err != nil {
 		log.Printf("Collection failed: %v", err)
@@ -116,13 +120,14 @@ func collectAndReport(cfg *config.Config, rep *reporter.Reporter) {
 	}
 
 	report := reporter.Report{
-		NodeID:    cfg.NodeID,
-		Name:      cfg.NodeName,
-		Provider:  cfg.Provider,
-		PublicIP:  cfg.PublicIP,
-		Latitude:  cfg.Latitude,
-		Longitude: cfg.Longitude,
-		Metrics:   *metrics,
+		NodeID:         cfg.NodeID,
+		Name:           cfg.NodeName,
+		Provider:       cfg.Provider,
+		PublicIP:       cfg.PublicIP,
+		Latitude:       cfg.Latitude,
+		Longitude:      cfg.Longitude,
+		LocationSource: locationSource,
+		Metrics:        *metrics,
 	}
 
 	if len(cfg.ProbeTargets) > 0 {

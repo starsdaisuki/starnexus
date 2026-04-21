@@ -3,48 +3,311 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StarNexus - Node Status</title>
+  <title>StarNexus Observatory</title>
 
-  <!-- Leaflet 1.9.4 -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Leaflet.Terminator -->
   <script src="https://unpkg.com/@joergdietrich/leaflet.terminator/L.Terminator.js"></script>
 
-  <!-- JetBrains Mono -->
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-
-  <!-- Custom styles -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <!-- Top status bar -->
-  <header id="status-bar">
-    <div class="status-bar-left">
-      <span class="logo">StarNexus</span>
-    </div>
-    <div class="status-bar-right">
-      <div id="status-counts" class="status-counts">
-        <span class="status-dot online"></span><span id="count-online">0</span> Online
-        <span class="status-dot degraded"></span><span id="count-degraded">0</span> Degraded
-        <span class="status-dot offline"></span><span id="count-offline">0</span> Offline
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-kicker">Distributed Observability</div>
+        <div class="brand-title-row">
+          <h1>StarNexus</h1>
+          <span id="system-health-badge" class="health-badge">Initializing</span>
+        </div>
+        <p id="status-headline" class="brand-subtitle">Loading node health, link quality, and ingress patterns.</p>
       </div>
-      <div class="status-bar-meta">
-        <button id="btn-toggle-conns" class="btn-toggle-conns active" title="Toggle live connections">Conns</button>
-        <button id="btn-refresh" class="btn-refresh" title="Refresh">&#x21bb;</button>
-        <span id="last-update">Last update: --</span>
+
+      <div class="topbar-controls">
+        <label class="search-shell">
+          <span>Search</span>
+          <input id="node-search" type="search" placeholder="node, provider, status">
+        </label>
+
+        <label class="range-shell">
+          <span>Trend Window</span>
+          <select id="detail-hours">
+            <option value="6">6h</option>
+            <option value="24" selected>24h</option>
+            <option value="72">72h</option>
+            <option value="168">7d</option>
+          </select>
+        </label>
+
+        <div class="action-group">
+          <button id="btn-toggle-conns" class="ghost-button active" type="button">Live Conns</button>
+          <button id="btn-refresh" class="primary-button" type="button">Refresh</button>
+        </div>
+
+        <div class="update-meta">
+          <span id="last-update">Last sync --</span>
+        </div>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <!-- Error banner -->
-  <div id="error-banner" class="error-banner hidden">&#x26a0; Connection lost, waiting to reconnect...</div>
+    <div id="error-banner" class="error-banner hidden">API sync failed. Dashboard is showing the last known state and will retry automatically.</div>
 
-  <!-- Map container -->
-  <div id="map"></div>
+    <section class="summary-strip">
+      <article class="summary-card">
+        <span class="summary-label">Fleet Health</span>
+        <strong id="summary-total">0 nodes</strong>
+        <span id="summary-online" class="summary-detail">0 online</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Pressure</span>
+        <strong id="summary-degraded">0 degraded</strong>
+        <span id="summary-offline" class="summary-detail">0 offline</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Best Node</span>
+        <strong id="summary-best-node">--</strong>
+        <span id="summary-best-node-detail" class="summary-detail">Waiting for scores</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Weakest Link</span>
+        <strong id="summary-worst-link">--</strong>
+        <span id="summary-worst-link-detail" class="summary-detail">Waiting for probes</span>
+      </article>
+      <article class="summary-card">
+        <span class="summary-label">Ingress Hotspot</span>
+        <strong id="summary-hot-source">--</strong>
+        <span id="summary-hot-source-detail" class="summary-detail">Waiting for connection samples</span>
+      </article>
+    </section>
 
-  <!-- JS modules -->
+    <main class="dashboard-grid">
+      <section id="panel-map" class="panel panel-map">
+        <div class="panel-header">
+          <div>
+            <h2>Global Topology</h2>
+            <p>Nodes, probe links, and live ingress overlaid in one map.</p>
+          </div>
+          <div class="panel-actions">
+            <span class="legend-chip online">Online</span>
+            <span class="legend-chip degraded">Degraded</span>
+            <span class="legend-chip offline">Offline</span>
+            <button id="btn-map-fullscreen" class="ghost-button map-button" type="button">Fullscreen</button>
+          </div>
+        </div>
+        <div id="map" class="map-canvas"></div>
+      </section>
+
+      <section class="panel panel-events">
+        <div class="panel-header">
+          <div>
+            <h2>Event Stream</h2>
+            <p>Recent incidents, status changes, and anomalies.</p>
+          </div>
+        </div>
+        <div id="events-feed" class="event-list"></div>
+      </section>
+
+      <section class="panel panel-radar">
+        <div class="panel-header">
+          <div>
+            <h2>Statistical Radar</h2>
+            <p>24h robust outlier and baseline-shift ranking across the fleet.</p>
+          </div>
+        </div>
+        <p id="radar-summary" class="panel-summary">Building the 24h fleet radar.</p>
+        <div id="radar-list" class="stack-list"></div>
+      </section>
+
+      <section class="panel panel-experiments">
+        <div class="panel-header">
+          <div>
+            <h2>Experiment View</h2>
+            <p>Ground-truth fault injection evaluation from labelled experiments.</p>
+          </div>
+        </div>
+        <div class="experiment-metrics">
+          <article>
+            <span>Detection</span>
+            <strong id="experiment-detection-rate">--</strong>
+            <small id="experiment-detection-delay">delay --</small>
+          </article>
+          <article>
+            <span>Recovery</span>
+            <strong id="experiment-recovery-rate">--</strong>
+            <small id="experiment-recovery-delay">delay --</small>
+          </article>
+          <article>
+            <span>False Positives</span>
+            <strong id="experiment-false-positive">--</strong>
+            <small>outside labelled windows</small>
+          </article>
+        </div>
+        <div id="experiment-list" class="stack-list"></div>
+      </section>
+
+      <section class="panel panel-nodes">
+        <div class="panel-header">
+          <div>
+            <h2>Node Matrix</h2>
+            <p>Sortable health, resource pressure, and score summary.</p>
+          </div>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Node</th>
+                <th>Status</th>
+                <th>CPU</th>
+                <th>Memory</th>
+                <th>Down</th>
+                <th>Links</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody id="nodes-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel panel-links">
+        <div class="panel-header">
+          <div>
+            <h2>Link Diagnostics</h2>
+            <p>Probe latency and packet loss ranked by weakest path.</p>
+          </div>
+        </div>
+        <div id="links-list" class="stack-list"></div>
+      </section>
+
+      <section class="panel panel-sources">
+        <div class="panel-header">
+          <div>
+            <h2>Ingress Hotspots</h2>
+            <p>Top sampled remote sources across the last 24 hours.</p>
+          </div>
+        </div>
+        <div id="sources-list" class="stack-list"></div>
+      </section>
+
+      <aside class="panel panel-detail">
+        <div class="panel-header">
+          <div>
+            <h2>Node Detail</h2>
+            <p id="detail-subtitle">Select a node from the map or matrix.</p>
+          </div>
+        </div>
+
+        <div id="detail-empty" class="empty-state">
+          <strong>No node selected</strong>
+          <span>Pick a node to inspect recent metrics, live ingress, historical state changes, and path quality.</span>
+        </div>
+
+        <div id="detail-content" class="detail-layout hidden">
+          <section class="detail-hero">
+            <div>
+              <div class="detail-kicker" id="detail-provider">--</div>
+              <h3 id="detail-name">--</h3>
+              <p id="detail-meta">--</p>
+            </div>
+            <div class="detail-health">
+              <span id="detail-status-badge" class="health-badge">Unknown</span>
+              <span id="detail-score" class="detail-score">Score --</span>
+            </div>
+          </section>
+
+          <section class="analytics-overview">
+            <article class="analytics-summary-card">
+              <span class="analytics-label">Statistical Read</span>
+              <strong id="detail-analytics-summary">--</strong>
+              <span id="detail-analytics-risk" class="analytics-risk">risk unknown</span>
+            </article>
+            <article class="analytics-summary-card">
+              <span class="analytics-label">Highlights</span>
+              <div id="detail-analytics-highlights" class="analytics-highlights"></div>
+            </article>
+          </section>
+
+          <section class="detail-stats" id="detail-stats"></section>
+
+          <section class="chart-grid">
+            <article class="mini-chart-card">
+              <div class="mini-chart-header">
+                <span>CPU</span>
+                <strong id="chart-cpu-value">--</strong>
+              </div>
+              <div id="chart-cpu" class="mini-chart"></div>
+            </article>
+            <article class="mini-chart-card">
+              <div class="mini-chart-header">
+                <span>Memory</span>
+                <strong id="chart-memory-value">--</strong>
+              </div>
+              <div id="chart-memory" class="mini-chart"></div>
+            </article>
+            <article class="mini-chart-card">
+              <div class="mini-chart-header">
+                <span>Bandwidth Down</span>
+                <strong id="chart-bandwidth-value">--</strong>
+              </div>
+              <div id="chart-bandwidth" class="mini-chart"></div>
+            </article>
+            <article class="mini-chart-card">
+              <div class="mini-chart-header">
+                <span>TCP Connections</span>
+                <strong id="chart-connections-value">--</strong>
+              </div>
+              <div id="chart-connections" class="mini-chart"></div>
+            </article>
+          </section>
+
+          <section class="detail-section">
+            <div class="detail-section-header">
+              <h4>Live Ingress</h4>
+              <span>Current connection snapshot from the agent</span>
+            </div>
+            <div id="detail-live-connections" class="stack-list compact"></div>
+          </section>
+
+          <section class="detail-section">
+            <div class="detail-section-header">
+              <h4>Recent Source Summary</h4>
+              <span>Persisted top sources over the last 24 hours</span>
+            </div>
+            <div id="detail-recent-connections" class="stack-list compact"></div>
+          </section>
+
+          <section class="detail-section">
+            <div class="detail-section-header">
+              <h4>Related Links</h4>
+              <span>All known probe paths involving this node</span>
+            </div>
+            <div id="detail-links" class="stack-list compact"></div>
+          </section>
+
+          <section class="detail-section">
+            <div class="detail-section-header">
+              <h4>Recent Events</h4>
+              <span>Latest incidents or state changes for this node</span>
+            </div>
+            <div id="detail-events" class="stack-list compact"></div>
+          </section>
+
+          <section class="detail-section">
+            <div class="detail-section-header">
+              <h4>Status Timeline</h4>
+              <span>Historical state transitions for this node</span>
+            </div>
+            <div id="detail-history" class="stack-list compact"></div>
+          </section>
+        </div>
+      </aside>
+    </main>
+  </div>
+
   <script src="/js/map.js"></script>
   <script src="/js/nodes.js"></script>
   <script src="/js/links.js"></script>

@@ -6,221 +6,345 @@ type Bindings = {
   API_TOKEN: string
 }
 
-const app = new Hono<{ Bindings: Bindings }>().basePath('/api')
+type NodeRow = {
+  id: string
+  name: string
+  provider?: string | null
+  ip_address?: string | null
+  latitude: number
+  longitude: number
+  location_source?: string | null
+  status: string
+  last_seen?: number | null
+  cpu_percent?: number | null
+  memory_percent?: number | null
+  disk_percent?: number | null
+  bandwidth_up?: number | null
+  bandwidth_down?: number | null
+  load_avg?: number | null
+  connections?: number | null
+  uptime_seconds?: number | null
+  updated_at?: number | null
+}
 
-// ============================================================
-// Helper: dynamic fake-data timestamps
-// ============================================================
+const app = new Hono<{ Bindings: Bindings }>().basePath('/api')
 
 function dynamicTimestamp(status: string): { last_seen: number; uptime_seconds?: number } {
   const now = Math.floor(Date.now() / 1000)
   switch (status) {
     case 'online':
-      return { last_seen: now - Math.floor(Math.random() * 26 + 5) } // 5~30s ago
+      return { last_seen: now - Math.floor(Math.random() * 24 + 6) }
     case 'degraded':
-      return { last_seen: now - Math.floor(Math.random() * 51 + 10) } // 10~60s ago
+      return { last_seen: now - Math.floor(Math.random() * 52 + 12) }
     case 'offline':
-      return {
-        last_seen: now - Math.floor(Math.random() * 82801 + 3600), // 1h~1d ago
-        uptime_seconds: 0,
-      }
+      return { last_seen: now - Math.floor(Math.random() * 86400 + 3600), uptime_seconds: 0 }
     default:
-      return { last_seen: now - 86400 }
+      return { last_seen: now - 3600 }
   }
 }
 
-// ============================================================
-// Auth middleware for admin endpoints
-// ============================================================
+function rowToNode(row: NodeRow) {
+  const ts = dynamicTimestamp(row.status)
+  return {
+    id: row.id,
+    name: row.name,
+    provider: row.provider ?? null,
+    ip_address: row.ip_address ?? null,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    location_source: row.location_source ?? 'unknown',
+    status: row.status,
+    last_seen: ts.last_seen,
+    metrics: {
+      cpu_percent: row.cpu_percent ?? null,
+      memory_percent: row.memory_percent ?? null,
+      disk_percent: row.disk_percent ?? null,
+      bandwidth_up: row.bandwidth_up ?? null,
+      bandwidth_down: row.bandwidth_down ?? null,
+      load_avg: row.load_avg ?? null,
+      connections: row.connections ?? null,
+      uptime_seconds: ts.uptime_seconds ?? row.uptime_seconds ?? null,
+      updated_at: row.updated_at ?? ts.last_seen,
+    },
+  }
+}
+
+async function getNodes(db: D1Database) {
+  const query = `
+    SELECT
+      n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.status, n.last_seen,
+      n.location_source,
+      m.cpu_percent, m.memory_percent, m.disk_percent, m.bandwidth_up, m.bandwidth_down,
+      m.load_avg, m.connections, m.uptime_seconds, m.updated_at
+    FROM nodes n
+    LEFT JOIN node_metrics m ON n.id = m.node_id
+  `
+  const { results } = await db.prepare(query).all<NodeRow>()
+  return (results || []).map(rowToNode)
+}
+
+async function getStatus(db: D1Database) {
+  const { results } = await db.prepare('SELECT status, COUNT(*) as count FROM nodes GROUP BY status').all<{ status: string; count: number }>()
+  const counts: Record<string, number> = { online: 0, degraded: 0, offline: 0, unknown: 0 }
+  let total = 0
+  for (const row of results || []) {
+    counts[row.status] = row.count
+    total += row.count
+  }
+  return { total, ...counts }
+}
+
+async function getLinks(db: D1Database) {
+  const { results } = await db.prepare(`
+    SELECT id, source_node_id, target_node_id, latency_ms, packet_loss, status, updated_at
+    FROM links
+  `).all()
+  return results || []
+}
+
+async function getScores(db: D1Database) {
+  const { results } = await db.prepare(`
+    SELECT node_id, availability, latency_score, stability, composite_score, updated_at
+    FROM node_scores
+    ORDER BY composite_score DESC
+  `).all()
+  return results || []
+}
+
+async function getEvents(db: D1Database, limit = 20, nodeId?: string) {
+  const base = `
+    SELECT e.id, e.node_id, n.name AS node_name, e.type, e.severity, e.title, e.body, e.metadata, e.created_at
+    FROM events e
+    LEFT JOIN nodes n ON n.id = e.node_id
+  `
+  if (nodeId) {
+    const { results } = await db.prepare(`${base} WHERE e.node_id = ? ORDER BY e.created_at DESC LIMIT ?`).bind(nodeId, limit).all()
+    return results || []
+  }
+  const { results } = await db.prepare(`${base} ORDER BY e.created_at DESC LIMIT ?`).bind(limit).all()
+  return results || []
+}
+
+async function getHotSources(db: D1Database, limit = 8, nodeId?: string) {
+  const now = Math.floor(Date.now() / 1000)
+  const since = now - 86400
+  const base = `
+    SELECT
+      cs.source_key,
+      cs.source_ip,
+      COALESCE(cs.source_country, '') AS source_country,
+      COALESCE(cs.source_city, '') AS source_city,
+      COALESCE(cs.protocol, '') AS protocol,
+      COALESCE(cs.local_port, 0) AS local_port,
+      MAX(cs.is_cloudflare) AS is_cloudflare,
+      COUNT(*) AS sample_count,
+      MAX(cs.rate_bps) AS peak_rate_bps,
+      AVG(cs.rate_bps) AS avg_rate_bps,
+      MAX(cs.total_bytes) AS latest_total_bytes,
+      MAX(cs.sample_at) AS last_seen,
+      n.id AS node_id,
+      n.name AS node_name
+    FROM connection_samples cs
+    LEFT JOIN nodes n ON n.id = cs.node_id
+    WHERE cs.sample_at >= ?
+  `
+  if (nodeId) {
+    const { results } = await db.prepare(`${base} AND cs.node_id = ? GROUP BY cs.source_key, cs.source_ip, cs.source_country, cs.source_city, cs.protocol, cs.local_port, n.id, n.name ORDER BY MAX(cs.rate_bps) DESC LIMIT ?`)
+      .bind(since, nodeId, limit).all()
+    return results || []
+  }
+  const { results } = await db.prepare(`${base} GROUP BY cs.source_key, cs.source_ip, cs.source_country, cs.source_city, cs.protocol, cs.local_port, n.id, n.name ORDER BY MAX(cs.rate_bps) DESC LIMIT ?`)
+    .bind(since, limit).all()
+  return results || []
+}
+
+function buildFleetAnalytics(nodes: any[], scores: any[]) {
+  const scoreMap = new Map((scores || []).map((score: any) => [score.node_id, score]))
+  const nodeInsights = (nodes || []).map((node: any) => {
+    const cpu = Number(node.metrics?.cpu_percent ?? 0)
+    const memory = Number(node.metrics?.memory_percent ?? 0)
+    const load = Number(node.metrics?.load_avg ?? 0)
+    let riskLevel = 'stable'
+    if (cpu >= 85 || memory >= 90) {
+      riskLevel = 'critical'
+    } else if (cpu >= 70 || memory >= 80 || load >= 1.5) {
+      riskLevel = 'elevated'
+    }
+
+    const highlights = []
+    if (cpu >= 70) highlights.push(`CPU is running at ${cpu.toFixed(1)}%.`)
+    if (memory >= 80) highlights.push(`Memory is running at ${memory.toFixed(1)}%.`)
+    if (!highlights.length) highlights.push('Recent metrics look stable in the demo dataset.')
+
+    return {
+      node_id: node.id,
+      node_name: node.name,
+      risk_level: riskLevel,
+      composite_score: scoreMap.get(node.id)?.composite_score ?? null,
+      coverage_percent: 100,
+      signal_count: highlights.length,
+      summary: `${node.name} is ${riskLevel} in the demo radar based on current CPU and memory pressure.`,
+      highlights,
+    }
+  }).sort((a: any, b: any) => {
+    const rank = (value: string) => value === 'critical' ? 0 : value === 'elevated' ? 1 : 2
+    return rank(a.risk_level) - rank(b.risk_level)
+  })
+
+  return {
+    window_hours: 24,
+    critical: nodeInsights.filter((item: any) => item.risk_level === 'critical').length,
+    elevated: nodeInsights.filter((item: any) => item.risk_level === 'elevated').length,
+    stable: nodeInsights.filter((item: any) => item.risk_level === 'stable').length,
+    summary: `24h radar across ${nodeInsights.length} demo nodes.`,
+    node_insights: nodeInsights,
+  }
+}
+
+function buildDemoGroundTruth() {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    experiment_count: 1,
+    detected_count: 1,
+    missed_count: 0,
+    recovered_count: 1,
+    mean_detection_delay_seconds: 27,
+    mean_recovery_delay_seconds: 31,
+    false_positive_event_count: 2,
+    detection_rate_percent: 100,
+    recovery_rate_percent: 100,
+    experiments: [
+      {
+        experiment_id: 'demo-cpu-fault',
+        node_id: 'sj-1',
+        injection_type: 'cpu_stress',
+        expected_metric: 'cpu_percent',
+        started_at: now - 5400,
+        ended_at: now - 5250,
+        detected: true,
+        first_detection_at: now - 5373,
+        detection_delay_seconds: 27,
+        recovered: true,
+        first_recovery_at: now - 5219,
+        recovery_delay_seconds: 31,
+        peak_metric_value: 99.4,
+        detection_titles: ['CPU outlier detected'],
+      },
+    ],
+  }
+}
 
 app.use('/report', async (c, next) => {
-  const auth = c.req.header('Authorization')
-  if (!auth || auth !== `Bearer ${c.env.API_TOKEN}`) {
+  if (c.req.header('Authorization') !== `Bearer ${c.env.API_TOKEN}`) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
   await next()
 })
 
-app.use('/nodes', async (c, next) => {
-  if (c.req.method === 'POST' || c.req.method === 'PUT' || c.req.method === 'DELETE') {
-    const auth = c.req.header('Authorization')
-    if (!auth || auth !== `Bearer ${c.env.API_TOKEN}`) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-  }
-  await next()
-})
+app.get('/dashboard', async c => {
+  const [status, nodes, links, scores, events, hotSources] = await Promise.all([
+    getStatus(c.env.DB),
+    getNodes(c.env.DB),
+    getLinks(c.env.DB),
+    getScores(c.env.DB),
+    getEvents(c.env.DB, 15),
+    getHotSources(c.env.DB, 8),
+  ])
 
-app.use('/nodes/:id', async (c, next) => {
-  if (c.req.method === 'PUT' || c.req.method === 'DELETE') {
-    const auth = c.req.header('Authorization')
-    if (!auth || auth !== `Bearer ${c.env.API_TOKEN}`) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-  }
-  await next()
-})
-
-// ============================================================
-// Public endpoints
-// ============================================================
-
-// GET /api/nodes — all nodes + latest metrics
-app.get('/nodes', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT
-      n.id, n.name, n.provider, n.latitude, n.longitude, n.status, n.last_seen,
-      m.cpu_percent, m.memory_percent, m.disk_percent,
-      m.bandwidth_up, m.bandwidth_down, m.load_avg, m.connections,
-      m.uptime_seconds, m.updated_at
-    FROM nodes n
-    LEFT JOIN node_metrics m ON n.id = m.node_id
-  `).all()
-
-  const nodes = (results || []).map((row: any) => {
-    const ts = dynamicTimestamp(row.status)
-    return {
-      id: row.id,
-      name: row.name,
-      provider: row.provider,
-      latitude: row.latitude,
-      longitude: row.longitude,
-      status: row.status,
-      last_seen: ts.last_seen,
-      metrics: {
-        cpu_percent: row.cpu_percent,
-        memory_percent: row.memory_percent,
-        disk_percent: row.disk_percent,
-        bandwidth_up: row.bandwidth_up,
-        bandwidth_down: row.bandwidth_down,
-        load_avg: row.load_avg,
-        connections: row.connections,
-        uptime_seconds: ts.uptime_seconds !== undefined ? ts.uptime_seconds : row.uptime_seconds,
-        updated_at: ts.last_seen,
-      },
-    }
-  })
-
-  return c.json({ nodes })
-})
-
-// GET /api/nodes/:id — single node detail
-app.get('/nodes/:id', async (c) => {
-  const id = c.req.param('id')
-  const row: any = await c.env.DB.prepare(`
-    SELECT
-      n.id, n.name, n.provider, n.latitude, n.longitude, n.status, n.last_seen,
-      m.cpu_percent, m.memory_percent, m.disk_percent,
-      m.bandwidth_up, m.bandwidth_down, m.load_avg, m.connections,
-      m.uptime_seconds, m.updated_at
-    FROM nodes n
-    LEFT JOIN node_metrics m ON n.id = m.node_id
-    WHERE n.id = ?
-  `).bind(id).first()
-
-  if (!row) {
-    return c.json({ error: 'Node not found' }, 404)
-  }
-
-  const ts = dynamicTimestamp(row.status)
   return c.json({
-    id: row.id,
-    name: row.name,
-    provider: row.provider,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    status: row.status,
-    last_seen: ts.last_seen,
-    metrics: {
-      cpu_percent: row.cpu_percent,
-      memory_percent: row.memory_percent,
-      disk_percent: row.disk_percent,
-      bandwidth_up: row.bandwidth_up,
-      bandwidth_down: row.bandwidth_down,
-      load_avg: row.load_avg,
-      connections: row.connections,
-      uptime_seconds: ts.uptime_seconds !== undefined ? ts.uptime_seconds : row.uptime_seconds,
-      updated_at: ts.last_seen,
-    },
+    generated_at: Math.floor(Date.now() / 1000),
+    status,
+    nodes,
+    links,
+    scores,
+    events,
+    hot_sources: hotSources,
+    fleet_analytics: buildFleetAnalytics(nodes, scores),
+    ground_truth: buildDemoGroundTruth(),
   })
 })
 
-// GET /api/links — all link info
-app.get('/links', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT id, source_node_id, target_node_id, latency_ms, packet_loss, status, updated_at
-    FROM links
-  `).all()
+app.get('/nodes', async c => c.json({ nodes: await getNodes(c.env.DB) }))
 
-  return c.json({ links: results || [] })
+app.get('/nodes/:id', async c => {
+  const nodes = await getNodes(c.env.DB)
+  const node = nodes.find(item => item.id === c.req.param('id'))
+  if (!node) return c.json({ error: 'Node not found' }, 404)
+  return c.json(node)
 })
 
-// GET /api/status — overview stats
-app.get('/status', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT status, COUNT(*) as count FROM nodes GROUP BY status
-  `).all()
+app.get('/nodes/:id/details', async c => {
+  const nodeId = c.req.param('id')
+  const hours = Math.min(Math.max(Number(c.req.query('hours') || 24), 1), 168)
+  const nodes = await getNodes(c.env.DB)
+  const node = nodes.find(item => item.id === nodeId)
+  if (!node) return c.json({ error: 'Node not found' }, 404)
 
-  const stats: Record<string, number> = { online: 0, degraded: 0, offline: 0, unknown: 0 }
-  let total = 0
-  for (const row of results || []) {
-    const r = row as any
-    stats[r.status] = r.count
-    total += r.count
-  }
+  const now = Math.floor(Date.now() / 1000)
+  const from = now - hours * 3600
 
-  return c.json({ total, ...stats })
+  const [history, scores, events, links, metrics, recentConnections] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT id, node_id, old_status, new_status, reason, created_at
+      FROM status_history
+      WHERE node_id = ?
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).bind(nodeId).all(),
+    getScores(c.env.DB),
+    getEvents(c.env.DB, 12, nodeId),
+    c.env.DB.prepare(`
+      SELECT id, source_node_id, target_node_id, latency_ms, packet_loss, status, updated_at
+      FROM links
+      WHERE source_node_id = ? OR target_node_id = ?
+    `).bind(nodeId, nodeId).all(),
+    c.env.DB.prepare(`
+      SELECT created_at AS timestamp, cpu_percent, memory_percent, disk_percent, bandwidth_up, bandwidth_down, load_avg, connections
+      FROM metrics_raw
+      WHERE node_id = ? AND created_at >= ?
+      ORDER BY created_at
+    `).bind(nodeId, from).all(),
+    getHotSources(c.env.DB, 10, nodeId),
+  ])
+
+  const score = (scores || []).find((item: any) => item.node_id === nodeId) || null
+
+  return c.json({
+    generated_at: now,
+    node,
+    score,
+    history: history.results || [],
+    events,
+    links: links.results || [],
+    metrics_window_hours: hours,
+    metrics: metrics.results || [],
+    recent_connections: recentConnections,
+    live_connections: [],
+  })
 })
 
-// GET /api/history/:id — status change history for a node
-app.get('/history/:id', async (c) => {
-  const id = c.req.param('id')
+app.get('/links', async c => c.json({ links: await getLinks(c.env.DB) }))
+app.get('/status', async c => c.json(await getStatus(c.env.DB)))
+app.get('/events', async c => c.json({ events: await getEvents(c.env.DB, Number(c.req.query('limit') || 20)) }))
+app.get('/scores', async c => c.json({ scores: await getScores(c.env.DB) }))
+app.get('/connections', async c => c.json({}))
+
+app.get('/history/:id', async c => {
   const { results } = await c.env.DB.prepare(`
     SELECT id, node_id, old_status, new_status, reason, created_at
     FROM status_history
     WHERE node_id = ?
     ORDER BY created_at DESC
-  `).bind(id).all()
-
+  `).bind(c.req.param('id')).all()
   return c.json({ history: results || [] })
 })
 
-// ============================================================
-// Admin endpoints
-// ============================================================
-
-// POST /api/report — agent data report
-app.post('/report', async (c) => {
+app.post('/report', async c => {
   const body = await c.req.json()
-  const {
-    node_id, cpu_percent, memory_percent, disk_percent,
-    bandwidth_up, bandwidth_down, load_avg, connections, uptime_seconds, status,
-  } = body
-
-  if (!node_id) {
-    return c.json({ error: 'node_id is required' }, 400)
-  }
+  const nodeId = body.node_id
+  if (!nodeId) return c.json({ error: 'node_id is required' }, 400)
 
   const now = Math.floor(Date.now() / 1000)
-
-  // Update node status
-  if (status) {
-    const old: any = await c.env.DB.prepare('SELECT status FROM nodes WHERE id = ?').bind(node_id).first()
-    if (old && old.status !== status) {
-      await c.env.DB.prepare(
-        'INSERT INTO status_history (node_id, old_status, new_status) VALUES (?, ?, ?)'
-      ).bind(node_id, old.status, status).run()
-    }
-    await c.env.DB.prepare(
-      'UPDATE nodes SET status = ?, last_seen = ? WHERE id = ?'
-    ).bind(status, now, node_id).run()
-  } else {
-    await c.env.DB.prepare(
-      'UPDATE nodes SET last_seen = ? WHERE id = ?'
-    ).bind(now, node_id).run()
-  }
-
-  // Update metrics
   await c.env.DB.prepare(`
     INSERT INTO node_metrics (node_id, cpu_percent, memory_percent, disk_percent, bandwidth_up, bandwidth_down, load_avg, connections, uptime_seconds, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -234,63 +358,20 @@ app.post('/report', async (c) => {
       connections = excluded.connections,
       uptime_seconds = excluded.uptime_seconds,
       updated_at = excluded.updated_at
-  `).bind(node_id, cpu_percent, memory_percent, disk_percent, bandwidth_up, bandwidth_down, load_avg, connections, uptime_seconds, now).run()
+  `).bind(
+    nodeId,
+    body.cpu_percent,
+    body.memory_percent,
+    body.disk_percent,
+    body.bandwidth_up,
+    body.bandwidth_down,
+    body.load_avg,
+    body.connections,
+    body.uptime_seconds,
+    now
+  ).run()
 
-  return c.json({ ok: true })
-})
-
-// POST /api/nodes — add new node
-app.post('/nodes', async (c) => {
-  const body = await c.req.json()
-  const { id, name, provider, latitude, longitude } = body
-
-  if (!id || !name || latitude == null || longitude == null) {
-    return c.json({ error: 'id, name, latitude, longitude are required' }, 400)
-  }
-
-  await c.env.DB.prepare(
-    'INSERT INTO nodes (id, name, provider, latitude, longitude) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, name, provider || null, latitude, longitude).run()
-
-  return c.json({ ok: true }, 201)
-})
-
-// PUT /api/nodes/:id — update node
-app.put('/nodes/:id', async (c) => {
-  const id = c.req.param('id')
-  const body = await c.req.json()
-  const { name, provider, latitude, longitude, status } = body
-
-  const fields: string[] = []
-  const values: any[] = []
-
-  if (name !== undefined) { fields.push('name = ?'); values.push(name) }
-  if (provider !== undefined) { fields.push('provider = ?'); values.push(provider) }
-  if (latitude !== undefined) { fields.push('latitude = ?'); values.push(latitude) }
-  if (longitude !== undefined) { fields.push('longitude = ?'); values.push(longitude) }
-  if (status !== undefined) { fields.push('status = ?'); values.push(status) }
-
-  if (fields.length === 0) {
-    return c.json({ error: 'No fields to update' }, 400)
-  }
-
-  values.push(id)
-  await c.env.DB.prepare(
-    `UPDATE nodes SET ${fields.join(', ')} WHERE id = ?`
-  ).bind(...values).run()
-
-  return c.json({ ok: true })
-})
-
-// DELETE /api/nodes/:id — delete node
-app.delete('/nodes/:id', async (c) => {
-  const id = c.req.param('id')
-
-  await c.env.DB.prepare('DELETE FROM node_metrics WHERE node_id = ?').bind(id).run()
-  await c.env.DB.prepare('DELETE FROM links WHERE source_node_id = ? OR target_node_id = ?').bind(id, id).run()
-  await c.env.DB.prepare('DELETE FROM status_history WHERE node_id = ?').bind(id).run()
-  await c.env.DB.prepare('DELETE FROM nodes WHERE id = ?').bind(id).run()
-
+  await c.env.DB.prepare('UPDATE nodes SET last_seen = ? WHERE id = ?').bind(now, nodeId).run()
   return c.json({ ok: true })
 })
 

@@ -124,7 +124,7 @@ scp bin/starnexus-agent $SERVER:~/starnexus/bin/
 
 # Upload server files
 scp server/schema.sql $SERVER:~/starnexus/
-scp -r server/web/* $SERVER:~/starnexus/web/
+scp -r web/public/* $SERVER:~/starnexus/web/
 ```
 
 #### 4b. Download GeoIP database
@@ -156,6 +156,13 @@ api_token: "a1b2c3d4e5f6...your-token-here..."
 
 # Frontend files directory.
 web_dir: "./web"
+
+# Optional: override node coordinates from one central file.
+# This is useful when you want exact rack / PoP map positions instead of GeoIP estimates.
+node_locations_path: "./node-locations.yaml"
+
+# Optional: labelled fault-injection experiments shown in the dashboard Experiment View.
+experiment_labels_path: "./analysis-output/experiments.jsonl"
 
 # How long (seconds) before marking a node as offline.
 # If an agent doesn't report within this time, the node turns red.

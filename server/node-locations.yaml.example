@@ -1,0 +1,15 @@
+nodes:
+  - id: "tokyo-sonet"
+    latitude: 35.6936
+    longitude: 139.7512
+    note: "Replace with your exact rack or PoP coordinate when known."
+
+  - id: "tokyo-dmit"
+    latitude: 35.6762
+    longitude: 139.6503
+    note: "Replace with your exact rack or PoP coordinate when known."
+
+  - id: "jp-lisahost"
+    latitude: 35.6916
+    longitude: 139.7680
+    note: "Replace with your exact rack or PoP coordinate when known."

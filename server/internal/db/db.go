@@ -35,10 +35,13 @@ func Open(dbPath, schemaPath string) (*DB, error) {
 		return nil, err
 	}
 
-	// Migrate: add ip_address column if missing
-	conn.Exec("ALTER TABLE nodes ADD COLUMN ip_address TEXT")
+	database := &DB{conn: conn}
+	if err := database.runMigrations(); err != nil {
+		conn.Close()
+		return nil, err
+	}
 
-	return &DB{conn: conn}, nil
+	return database, nil
 }
 
 func (d *DB) Close() error {
@@ -48,15 +51,16 @@ func (d *DB) Close() error {
 // --- Node types ---
 
 type Node struct {
-	ID        string       `json:"id"`
-	Name      string       `json:"name"`
-	Provider  *string      `json:"provider"`
-	IPAddress *string      `json:"ip_address"`
-	Latitude  float64      `json:"latitude"`
-	Longitude float64      `json:"longitude"`
-	Status    string       `json:"status"`
-	LastSeen  *int64       `json:"last_seen"`
-	Metrics   *NodeMetrics `json:"metrics,omitempty"`
+	ID             string       `json:"id"`
+	Name           string       `json:"name"`
+	Provider       *string      `json:"provider"`
+	IPAddress      *string      `json:"ip_address"`
+	Latitude       float64      `json:"latitude"`
+	Longitude      float64      `json:"longitude"`
+	LocationSource *string      `json:"location_source,omitempty"`
+	Status         string       `json:"status"`
+	LastSeen       *int64       `json:"last_seen"`
+	Metrics        *NodeMetrics `json:"metrics,omitempty"`
 }
 
 type NodeMetrics struct {
@@ -95,7 +99,7 @@ type StatusHistory struct {
 func (d *DB) GetAllNodes() ([]Node, error) {
 	rows, err := d.conn.Query(`
 		SELECT
-			n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.status, n.last_seen,
+			n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.location_source, n.status, n.last_seen,
 			m.cpu_percent, m.memory_percent, m.disk_percent,
 			m.bandwidth_up, m.bandwidth_down, m.load_avg, m.connections,
 			m.uptime_seconds, m.updated_at
@@ -112,7 +116,7 @@ func (d *DB) GetAllNodes() ([]Node, error) {
 		var n Node
 		var m NodeMetrics
 		err := rows.Scan(
-			&n.ID, &n.Name, &n.Provider, &n.IPAddress, &n.Latitude, &n.Longitude, &n.Status, &n.LastSeen,
+			&n.ID, &n.Name, &n.Provider, &n.IPAddress, &n.Latitude, &n.Longitude, &n.LocationSource, &n.Status, &n.LastSeen,
 			&m.CPUPercent, &m.MemoryPercent, &m.DiskPercent,
 			&m.BandwidthUp, &m.BandwidthDown, &m.LoadAvg, &m.Connections,
 			&m.UptimeSeconds, &m.UpdatedAt,
@@ -129,7 +133,7 @@ func (d *DB) GetAllNodes() ([]Node, error) {
 func (d *DB) GetNode(id string) (*Node, error) {
 	row := d.conn.QueryRow(`
 		SELECT
-			n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.status, n.last_seen,
+			n.id, n.name, n.provider, n.ip_address, n.latitude, n.longitude, n.location_source, n.status, n.last_seen,
 			m.cpu_percent, m.memory_percent, m.disk_percent,
 			m.bandwidth_up, m.bandwidth_down, m.load_avg, m.connections,
 			m.uptime_seconds, m.updated_at
@@ -141,7 +145,7 @@ func (d *DB) GetNode(id string) (*Node, error) {
 	var n Node
 	var m NodeMetrics
 	err := row.Scan(
-		&n.ID, &n.Name, &n.Provider, &n.IPAddress, &n.Latitude, &n.Longitude, &n.Status, &n.LastSeen,
+		&n.ID, &n.Name, &n.Provider, &n.IPAddress, &n.Latitude, &n.Longitude, &n.LocationSource, &n.Status, &n.LastSeen,
 		&m.CPUPercent, &m.MemoryPercent, &m.DiskPercent,
 		&m.BandwidthUp, &m.BandwidthDown, &m.LoadAvg, &m.Connections,
 		&m.UptimeSeconds, &m.UpdatedAt,
@@ -246,13 +250,14 @@ type ReportLink struct {
 }
 
 type ReportRequest struct {
-	NodeID    string  `json:"node_id"`
-	Name      string  `json:"name"`
-	Provider  string  `json:"provider"`
-	PublicIP  string  `json:"public_ip"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Metrics   struct {
+	NodeID         string  `json:"node_id"`
+	Name           string  `json:"name"`
+	Provider       string  `json:"provider"`
+	PublicIP       string  `json:"public_ip"`
+	Latitude       float64 `json:"latitude"`
+	Longitude      float64 `json:"longitude"`
+	LocationSource string  `json:"location_source"`
+	Metrics        struct {
 		CPUPercent    float64 `json:"cpu_percent"`
 		MemoryPercent float64 `json:"memory_percent"`
 		DiskPercent   float64 `json:"disk_percent"`
@@ -275,17 +280,18 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 
 	// Upsert node (with ip_address)
 	_, err = d.conn.Exec(`
-		INSERT INTO nodes (id, name, provider, ip_address, latitude, longitude, status, last_seen)
-		VALUES (?, ?, ?, ?, ?, ?, 'online', ?)
+		INSERT INTO nodes (id, name, provider, ip_address, latitude, longitude, location_source, status, last_seen)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 'online', ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			provider = excluded.provider,
 			ip_address = excluded.ip_address,
 			latitude = excluded.latitude,
 			longitude = excluded.longitude,
+			location_source = excluded.location_source,
 			status = 'online',
 			last_seen = excluded.last_seen
-	`, r.NodeID, r.Name, r.Provider, r.PublicIP, r.Latitude, r.Longitude, now)
+	`, r.NodeID, r.Name, r.Provider, r.PublicIP, r.Latitude, r.Longitude, normalizeLocationSource(r.LocationSource), now)
 	if err != nil {
 		return
 	}
@@ -392,6 +398,11 @@ func (d *DB) SetNodeDegraded(nodeID string) error {
 	return err
 }
 
+func (d *DB) SetNodeStatus(nodeID, status string) error {
+	_, err := d.conn.Exec("UPDATE nodes SET status = ? WHERE id = ?", status, nodeID)
+	return err
+}
+
 func (d *DB) DeleteNode(id string) error {
 	_, _ = d.conn.Exec("DELETE FROM node_metrics WHERE node_id = ?", id)
 	_, _ = d.conn.Exec("DELETE FROM links WHERE source_node_id = ? OR target_node_id = ?", id, id)
@@ -400,12 +411,57 @@ func (d *DB) DeleteNode(id string) error {
 	return err
 }
 
-func (d *DB) CreateNode(id, name, provider string, lat, lng float64) error {
+type NodeLocationOverride struct {
+	NodeID         string
+	Latitude       float64
+	Longitude      float64
+	LocationSource string
+}
+
+func (d *DB) CreateNode(id, name, provider string, lat, lng float64, locationSource string) error {
 	_, err := d.conn.Exec(
-		"INSERT INTO nodes (id, name, provider, latitude, longitude) VALUES (?, ?, ?, ?, ?)",
-		id, name, provider, lat, lng,
+		"INSERT INTO nodes (id, name, provider, latitude, longitude, location_source) VALUES (?, ?, ?, ?, ?, ?)",
+		id, name, provider, lat, lng, normalizeLocationSource(locationSource),
 	)
 	return err
+}
+
+func (d *DB) ApplyLocationOverrides(overrides []NodeLocationOverride) error {
+	if len(overrides) == 0 {
+		return nil
+	}
+
+	tx, err := d.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, item := range overrides {
+		if item.NodeID == "" {
+			continue
+		}
+		if _, err := tx.Exec(
+			"UPDATE nodes SET latitude = ?, longitude = ?, location_source = ? WHERE id = ?",
+			item.Latitude,
+			item.Longitude,
+			normalizeLocationSource(item.LocationSource),
+			item.NodeID,
+		); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func normalizeLocationSource(source string) string {
+	switch source {
+	case "manual", "geoip", "manual_override":
+		return source
+	default:
+		return "unknown"
+	}
 }
 
 // --- Analytics queries ---
@@ -597,6 +653,23 @@ func (d *DB) GetAllScores() ([]NodeScore, error) {
 		scores = append(scores, s)
 	}
 	return scores, rows.Err()
+}
+
+func (d *DB) GetNodeScore(nodeID string) (*NodeScore, error) {
+	row := d.conn.QueryRow(`
+		SELECT node_id, availability, latency_score, stability, composite_score, updated_at
+		FROM node_scores
+		WHERE node_id = ?
+	`, nodeID)
+
+	var score NodeScore
+	if err := row.Scan(&score.NodeID, &score.Availability, &score.LatencyScore, &score.Stability, &score.CompositeScore, &score.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &score, nil
 }
 
 // Conn exposes the underlying connection for analytics queries.

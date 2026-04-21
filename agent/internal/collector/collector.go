@@ -15,7 +15,7 @@ type Metrics struct {
 	MemoryPercent float64 `json:"memory_percent"`
 	DiskPercent   float64 `json:"disk_percent"`
 	BandwidthUp   float64 `json:"bandwidth_up"`   // KB/s
-	BandwidthDown float64 `json:"bandwidth_down"`  // KB/s
+	BandwidthDown float64 `json:"bandwidth_down"` // KB/s
 	LoadAvg       float64 `json:"load_avg"`
 	Connections   int     `json:"connections"`
 	UptimeSeconds int64   `json:"uptime_seconds"`
