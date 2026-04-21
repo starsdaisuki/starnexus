@@ -59,6 +59,12 @@ func (m *Monitor) checkOffline() {
 			log.Printf("Failed to record status change for %s: %v", node.ID, err)
 		}
 		_ = m.db.RecordEvent(node.ID, "status_change", "critical", "Node offline", "No report received within offline threshold", "")
+		if _, err := m.db.RecoverNodeIncidents(node.ID, "node_degraded"); err != nil {
+			log.Printf("Failed to recover degraded incident for %s: %v", node.ID, err)
+		}
+		if _, err := m.db.UpsertIncident(node.ID, "node_offline", "critical", "Node offline", "No report received within offline threshold", db.BuildIncidentFingerprint(node.ID, "node_offline", "Node offline"), ""); err != nil {
+			log.Printf("Failed to upsert offline incident for %s: %v", node.ID, err)
+		}
 		log.Printf("Node %s marked offline (was %s)", node.ID, node.OldStatus)
 	}
 }

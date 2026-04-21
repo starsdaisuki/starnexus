@@ -110,6 +110,16 @@
         <div id="events-feed" class="event-list"></div>
       </section>
 
+      <section class="panel panel-incidents">
+        <div class="panel-header">
+          <div>
+            <h2>Active Incidents</h2>
+            <p>Open, acknowledged, and suppressed issues that still need lifecycle tracking.</p>
+          </div>
+        </div>
+        <div id="incidents-list" class="stack-list"></div>
+      </section>
+
       <section class="panel panel-radar">
         <div class="panel-header">
           <div>
@@ -146,6 +156,35 @@
           </article>
         </div>
         <div id="experiment-list" class="stack-list"></div>
+      </section>
+
+      <section class="panel panel-reliability">
+        <div class="panel-header">
+          <div>
+            <h2>Operational Reliability</h2>
+            <p>24h availability proxy, telemetry quality, and incident pressure.</p>
+          </div>
+        </div>
+        <div class="reliability-metrics">
+          <article>
+            <span>Fleet Score</span>
+            <strong id="reliability-score">--</strong>
+          </article>
+          <article>
+            <span>Coverage</span>
+            <strong id="reliability-coverage">--</strong>
+          </article>
+          <article>
+            <span>Incidents</span>
+            <strong id="reliability-incidents">--</strong>
+          </article>
+          <article>
+            <span>Signals</span>
+            <strong id="reliability-signals">--</strong>
+          </article>
+        </div>
+        <p id="reliability-summary" class="panel-summary">Building the reliability ledger.</p>
+        <div id="reliability-list" class="stack-list"></div>
       </section>
 
       <section class="panel panel-nodes">
@@ -290,8 +329,16 @@
 
           <section class="detail-section">
             <div class="detail-section-header">
+              <h4>Incident Lifecycle</h4>
+              <span>Open, acknowledged, suppressed, and recovered incidents for this node</span>
+            </div>
+            <div id="detail-incidents" class="stack-list compact"></div>
+          </section>
+
+          <section class="detail-section">
+            <div class="detail-section-header">
               <h4>Recent Events</h4>
-              <span>Latest incidents or state changes for this node</span>
+              <span>Append-only audit events for this node</span>
             </div>
             <div id="detail-events" class="stack-list compact"></div>
           </section>

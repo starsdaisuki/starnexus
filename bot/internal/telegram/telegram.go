@@ -33,7 +33,7 @@ func NewBot(token string, chatIDs []int64) *Bot {
 func (b *Bot) SendMessage(text string) error {
 	var lastErr error
 	for _, chatID := range b.chatIDs {
-		if err := b.sendToChat(chatID, text); err != nil {
+		if err := b.SendMessageTo(chatID, text); err != nil {
 			log.Printf("sendMessage to %d failed: %v", chatID, err)
 			lastErr = err
 		}
@@ -41,7 +41,13 @@ func (b *Bot) SendMessage(text string) error {
 	return lastErr
 }
 
-func (b *Bot) sendToChat(chatID int64, text string) error {
+func (b *Bot) ChatIDs() []int64 {
+	ids := make([]int64, len(b.chatIDs))
+	copy(ids, b.chatIDs)
+	return ids
+}
+
+func (b *Bot) SendMessageTo(chatID int64, text string) error {
 	params := url.Values{
 		"chat_id":    {strconv.FormatInt(chatID, 10)},
 		"text":       {text},
@@ -72,7 +78,7 @@ type Update struct {
 }
 
 // CommandHandler is called when a command is received. Returns the reply text.
-type CommandHandler func(command string) string
+type CommandHandler func(chatID int64, command string) string
 
 // PollCommands long-polls for updates and dispatches commands.
 // Only responds to messages from the configured chat IDs.
@@ -106,10 +112,10 @@ func (b *Bot) PollCommands(handler CommandHandler, stop <-chan struct{}) {
 				continue
 			}
 
-			reply := handler(text)
+			reply := handler(u.Message.Chat.ID, text)
 			if reply != "" {
 				// Reply to the specific chat that sent the command
-				if err := b.sendToChat(u.Message.Chat.ID, reply); err != nil {
+				if err := b.SendMessageTo(u.Message.Chat.ID, reply); err != nil {
 					log.Printf("Failed to send reply: %v", err)
 				}
 			}

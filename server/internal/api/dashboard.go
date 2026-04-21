@@ -17,8 +17,10 @@ type dashboardResponse struct {
 	Links          []db.Link                        `json:"links"`
 	Scores         []db.NodeScore                   `json:"scores"`
 	Events         []db.Event                       `json:"events"`
+	Incidents      []db.Incident                    `json:"incidents"`
 	HotSources     []db.ConnectionSummary           `json:"hot_sources"`
 	FleetAnalytics analytics.FleetAnalytics         `json:"fleet_analytics"`
+	Reliability    analytics.ReliabilityAnalytics   `json:"reliability_analytics"`
 	GroundTruth    *analytics.GroundTruthEvaluation `json:"ground_truth,omitempty"`
 }
 
@@ -28,6 +30,7 @@ type nodeDetailsResponse struct {
 	Score              *db.NodeScore             `json:"score,omitempty"`
 	History            []db.StatusHistory        `json:"history"`
 	Events             []db.Event                `json:"events"`
+	Incidents          []db.Incident             `json:"incidents"`
 	Links              []db.Link                 `json:"links"`
 	MetricsWindowHours int                       `json:"metrics_window_hours"`
 	Metrics            []db.MetricPoint          `json:"metrics"`
@@ -78,6 +81,16 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		events = []db.Event{}
 	}
 
+	incidents, err := s.db.GetActiveIncidents(20)
+	if err != nil {
+		log.Printf("GetActiveIncidents error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if incidents == nil {
+		incidents = []db.Incident{}
+	}
+
 	hotSources, err := s.db.GetConnectionHighlights(time.Now().Add(-24*time.Hour).Unix(), 8)
 	if err != nil {
 		log.Printf("GetConnectionHighlights error: %v", err)
@@ -95,6 +108,13 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	from := now.Add(-24 * time.Hour).Unix()
+	labels := s.loadExperimentLabels(from)
+	windowEvents, err := s.db.GetEventsSince(from, 1000)
+	if err != nil {
+		log.Printf("GetEventsSince for reliability analytics error: %v", err)
+		windowEvents = []db.Event{}
+	}
+
 	fleetSamples := make([]analytics.FleetNodeSample, 0, len(nodes))
 	pointsByNode := make(map[string][]db.MetricPoint, len(nodes))
 	for _, node := range nodes {
@@ -110,7 +130,8 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 			Analytics: analytics.BuildDetailAnalytics(points, 24),
 		})
 	}
-	groundTruth := s.buildDashboardGroundTruth(from, pointsByNode)
+	groundTruth := s.buildDashboardGroundTruth(from, labels, pointsByNode)
+	reliability := analytics.BuildReliabilityAnalytics(24, now.Unix(), fleetSamples, windowEvents, labels)
 
 	writeJSON(w, http.StatusOK, dashboardResponse{
 		GeneratedAt:    now.Unix(),
@@ -119,13 +140,15 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		Links:          links,
 		Scores:         scores,
 		Events:         events,
+		Incidents:      incidents,
 		HotSources:     hotSources,
 		FleetAnalytics: analytics.BuildFleetAnalytics(24, fleetSamples),
+		Reliability:    reliability,
 		GroundTruth:    groundTruth,
 	})
 }
 
-func (s *Server) buildDashboardGroundTruth(from int64, pointsByNode map[string][]db.MetricPoint) *analytics.GroundTruthEvaluation {
+func (s *Server) loadExperimentLabels(from int64) []analytics.ExperimentLabel {
 	if s.experimentLabelsPath == "" {
 		return nil
 	}
@@ -134,7 +157,10 @@ func (s *Server) buildDashboardGroundTruth(from int64, pointsByNode map[string][
 		log.Printf("LoadExperimentLabelsJSONL error: %v", err)
 		return nil
 	}
-	labels = filterExperimentLabelsSince(labels, from)
+	return filterExperimentLabelsSince(labels, from)
+}
+
+func (s *Server) buildDashboardGroundTruth(from int64, labels []analytics.ExperimentLabel, pointsByNode map[string][]db.MetricPoint) *analytics.GroundTruthEvaluation {
 	if len(labels) == 0 {
 		return nil
 	}
@@ -201,6 +227,16 @@ func (s *Server) handleGetNodeDetails(w http.ResponseWriter, r *http.Request) {
 		events = []db.Event{}
 	}
 
+	incidents, err := s.db.GetNodeIncidents(nodeID, 12)
+	if err != nil {
+		log.Printf("GetNodeIncidents error: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if incidents == nil {
+		incidents = []db.Incident{}
+	}
+
 	score, err := s.db.GetNodeScore(nodeID)
 	if err != nil {
 		log.Printf("GetNodeScore error: %v", err)
@@ -242,6 +278,7 @@ func (s *Server) handleGetNodeDetails(w http.ResponseWriter, r *http.Request) {
 		Score:              score,
 		History:            history,
 		Events:             events,
+		Incidents:          incidents,
 		Links:              links,
 		MetricsWindowHours: hours,
 		Metrics:            db.DownsampleMetricPoints(points, 120),

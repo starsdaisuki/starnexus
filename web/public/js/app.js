@@ -140,9 +140,11 @@ const StarApp = (() => {
     const filteredNodes = sortNodes(nodes, scores).filter(matchesSearch)
 
     renderSummary(nodes, state.dashboard.status || {}, state.dashboard.links || [], state.dashboard.hot_sources || [], scores)
+    renderIncidents(state.dashboard.incidents || [])
     renderEvents(state.dashboard.events || [])
     renderFleetRadar(state.dashboard.fleet_analytics || {})
     renderGroundTruth(state.dashboard.ground_truth || null)
+    renderReliability(state.dashboard.reliability_analytics || null)
     renderNodeTable(filteredNodes, scores)
     renderLinksList(state.dashboard.links || [], nodes)
     renderSources(state.dashboard.hot_sources || [])
@@ -199,6 +201,24 @@ const StarApp = (() => {
           <div class="event-body">${escapeHtml(event.body || 'No event details available.')}</div>
         </article>
       `)
+    })
+  }
+
+  function renderIncidents(incidents) {
+    const root = document.getElementById('incidents-list')
+    root.innerHTML = ''
+
+    if (!incidents.length) {
+      root.innerHTML = emptyListItem('No active incidents. Recovered issues remain available through node detail and /api/incidents?status=recent.')
+      return
+    }
+
+    incidents.forEach(incident => {
+      root.insertAdjacentHTML('beforeend', incidentMarkup(incident))
+      const article = root.lastElementChild
+      if (article && incident.node_id) {
+        article.addEventListener('click', () => selectNode(incident.node_id))
+      }
     })
   }
 
@@ -272,6 +292,49 @@ const StarApp = (() => {
         </div>
       `
       article.addEventListener('click', () => selectNode(experiment.node_id))
+      root.appendChild(article)
+    })
+  }
+
+  function renderReliability(reliability) {
+    const root = document.getElementById('reliability-list')
+    const summary = document.getElementById('reliability-summary')
+    root.innerHTML = ''
+
+    if (!reliability || !(reliability.nodes || []).length) {
+      document.getElementById('reliability-score').textContent = '--'
+      document.getElementById('reliability-coverage').textContent = '--'
+      document.getElementById('reliability-incidents').textContent = '--'
+      document.getElementById('reliability-signals').textContent = '--'
+      summary.textContent = 'No reliability analytics available yet.'
+      root.innerHTML = emptyListItem('Collect more telemetry to build the reliability ledger.')
+      return
+    }
+
+    document.getElementById('reliability-score').textContent = `${Number(reliability.fleet_operational_score || 0).toFixed(0)}/100`
+    document.getElementById('reliability-coverage').textContent = `${Number(reliability.fleet_data_coverage_percent || 0).toFixed(0)}%`
+    document.getElementById('reliability-incidents').textContent = `${reliability.incident_count || 0}`
+    document.getElementById('reliability-signals').textContent = `${reliability.signal_event_count || 0}`
+    summary.textContent = reliability.summary || '24h reliability ledger is available.'
+
+    reliability.nodes.slice(0, 6).forEach(node => {
+      const signals = (node.signals || []).slice(0, 3).map(escapeHtml).join(' • ')
+      const article = document.createElement('article')
+      article.className = 'stack-item'
+      article.innerHTML = `
+        <div class="stack-topline">
+          <span>${escapeHtml(node.node_name || node.node_id || 'Unknown node')}</span>
+          <span class="quality-pill ${escapeHtml(node.data_quality || 'weak')}">${escapeHtml(node.data_quality || 'weak')}</span>
+        </div>
+        <div class="stack-title">${Number(node.operational_score || 0).toFixed(0)}/100 operational score • ${escapeHtml(node.status || 'unknown')}</div>
+        <div class="stack-body">${escapeHtml(node.recommendation || 'No recommendation available.')}</div>
+        <div class="stack-topline">
+          <span>${Number(node.availability_percent || 0).toFixed(0)}% availability proxy • ${Number(node.data_coverage_percent || 0).toFixed(0)}% coverage</span>
+          <span>${node.incident_count || 0} incident(s) • ${node.signal_event_count || 0} signal(s)</span>
+        </div>
+        <div class="stack-footnote">${signals || 'no signals'}</div>
+      `
+      article.addEventListener('click', () => selectNode(node.node_id))
       root.appendChild(article)
     })
   }
@@ -361,6 +424,7 @@ const StarApp = (() => {
       events,
       links,
       metrics,
+      incidents,
       live_connections: liveConnections,
       recent_connections: recentConnections,
       analytics,
@@ -436,6 +500,8 @@ const StarApp = (() => {
       `${escapeHtml(event.body || 'No event details available.')}`,
       `${escapeHtml(event.type || 'event')} • ${relativeTime(event.created_at)}`
     ), 'No node-specific events recorded.')
+
+    renderCompactList('detail-incidents', incidents || [], incident => incidentMarkup(incident), 'No incidents recorded for this node.')
 
     renderCompactList('detail-history', (history || []).slice(0, 10), item => stackItem(
       `${escapeHtml(item.old_status || 'unknown')} → ${escapeHtml(item.new_status || 'unknown')}`,
@@ -619,6 +685,28 @@ const StarApp = (() => {
     `
   }
 
+  function incidentMarkup(incident) {
+    const node = incident.node_name || incident.node_id || 'system'
+    const status = incident.status || 'open'
+    const statusDetail = status === 'suppressed' && incident.suppress_until
+      ? `suppressed until ${absoluteDateTime(incident.suppress_until)}`
+      : status
+    return `
+      <article class="stack-item incident-card ${escapeHtml(incident.severity || 'info')} ${escapeHtml(status)}">
+        <div class="stack-topline">
+          <span>#${incident.id} • ${escapeHtml(node)} • ${escapeHtml(incident.type || 'incident')}</span>
+          <span class="incident-state ${escapeHtml(status)}">${escapeHtml(statusDetail)}</span>
+        </div>
+        <div class="stack-title">${escapeHtml(incident.title || 'Untitled incident')}</div>
+        <div class="stack-body">${escapeHtml(incident.body || 'No incident details available.')}</div>
+        <div class="stack-topline">
+          <span>${escapeHtml(incident.severity || 'info')} • ${incident.event_count || 1} event(s)</span>
+          <span>${relativeTime(incident.last_seen)} • first ${relativeTime(incident.first_seen)}</span>
+        </div>
+      </article>
+    `
+  }
+
   function emptyListItem(message) {
     return `<article class="stack-item"><div class="stack-body">${escapeHtml(message)}</div></article>`
   }
@@ -710,6 +798,11 @@ const StarApp = (() => {
   function absoluteTime(timestamp) {
     if (!timestamp) return '--'
     return new Date(timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function absoluteDateTime(timestamp) {
+    if (!timestamp) return '--'
+    return new Date(timestamp * 1000).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   function describeLocationSource(source) {

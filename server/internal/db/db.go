@@ -407,6 +407,7 @@ func (d *DB) DeleteNode(id string) error {
 	_, _ = d.conn.Exec("DELETE FROM node_metrics WHERE node_id = ?", id)
 	_, _ = d.conn.Exec("DELETE FROM links WHERE source_node_id = ? OR target_node_id = ?", id, id)
 	_, _ = d.conn.Exec("DELETE FROM status_history WHERE node_id = ?", id)
+	_, _ = d.conn.Exec("DELETE FROM incidents WHERE node_id = ?", id)
 	_, err := d.conn.Exec("DELETE FROM nodes WHERE id = ?", id)
 	return err
 }

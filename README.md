@@ -52,6 +52,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 - Node registration via agent self-report
 - Offline detection (configurable threshold)
 - Threshold alerts (CPU > 80%, memory > 90%)
+- Incident lifecycle model: open, acknowledged, suppressed, recovered
 - Static file serving for web frontend
 - Agent binary + GeoIP DB + install script download endpoints
 - Data analytics: downsampling, anomaly detection, node scoring
@@ -71,11 +72,14 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 - Alert debouncing (no spam for the same issue)
 - Reverse heartbeat: pings server every 5 min, alerts after 3 failures
 - `/status` command: node summary
+- `/analytics`, `/incidents`, `/events`, and `/node <id-or-name>` commands for operational inspection
+- `/ack <id>` and `/silence <id> [30m|2h|1d]` for incident lifecycle operations
 - `/report` command: on-demand daily report with AI analysis
+- Per-chat alert preferences: `/mute`, `/unmute`, `/subscribe`, `/unsubscribe`, `/daily on|off`, `/prefs`
 - Multi-chat support (alerts sent to multiple Telegram users)
 
 ### Web Frontend
-- Observatory dashboard with summary cards, event feed, node matrix, link diagnostics, and right-side node detail
+- Observatory dashboard with summary cards, active incidents, event feed, node matrix, link diagnostics, and right-side node detail
 - Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen mode
 - Day/night terminator line (updates every 60s)
 - Animated node markers with glow effects (online/degraded/offline)
@@ -86,11 +90,12 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
   - Cloudflare CDN aggregation by /16 subnet
   - Hover tooltip with per-IP breakdown
   - Line thickness by transfer rate
-- Node detail panel: trends, historical events, status history, ingress summary, and statistical highlights
+- Node detail panel: trends, incidents, historical events, status history, ingress summary, and statistical highlights
 - Connection toggle button
 
 ### Analytics (automatic)
-- **Anomaly detection** (every 5 min): robust outlier + baseline-shift detection over a 24h rolling window
+- **Anomaly detection** (every 5 min): calibrated robust outlier + baseline-shift detection over a 24h rolling window
+- **Reliability ledger**: separates operational incidents, statistical signals, and labelled experiment signals
 - **Downsampling** (daily 03:00 UTC+8): raw → hourly (7-30d) → daily (30d+), purge old data
 - **Node scoring** (daily): availability 40% + latency 30% + stability 30%
 - **AI daily report** (09:00 UTC+8): metrics summary + Mistral AI analysis → Telegram
@@ -110,7 +115,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 | Agent | Go, /proc metrics, GeoIP (oschwald/geoip2-golang) |
 | Bot | Go, Telegram Bot API |
 | Web | Leaflet, vanilla JS, Cloudflare Pages (demo) |
-| Analytics | Mistral AI API, Z-score anomaly detection |
+| Analytics | Robust statistics, MAD/median outlier detection, baseline-shift analysis, Mistral AI API |
 | Database | SQLite (WAL mode) |
 | Deployment | systemd, iptables, SSH tunnel |
 
@@ -129,6 +134,9 @@ curl -sSL http://<server>:8900/install.sh | bash -s -- \
   --token <api-token> \
   --node-id <node-id> \
   --node-name "<display name>"
+
+# Or onboard a new SSH-configured VPS from your local machine
+./scripts/onboard-node.sh --primary <server-ssh-alias> --node <new-vps-alias> --node-id <node-id> --yes
 
 # Access web UI via SSH tunnel
 ssh -L 8900:localhost:8900 <server-host>
@@ -154,6 +162,8 @@ Primary server config is saved to `~/.starnexus.env` on first run — no repeate
 Run `make analyze` to export `nodes.csv`, `metrics.csv`, `events.csv`, `connection_sources.csv`, `analytics.json`, and `report.md` into `analysis-output/`. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for how to interpret the proxy evaluation and extend it with controlled fault injection.
 
 CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file.
+
+For the current project status, recent upgrade summary, level assessment, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## License
 

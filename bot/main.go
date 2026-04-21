@@ -40,6 +40,11 @@ func main() {
 		mon.StartHeartbeat(cfg.HeartbeatIntervalSeconds, done)
 	}()
 
+	// Daily summary dispatcher. Per-chat delivery can be toggled with /daily on|off.
+	go func() {
+		mon.StartDailySummary(3600, done)
+	}()
+
 	// Command listener goroutine
 	go func() {
 		bot.PollCommands(mon.HandleCommand, done)

@@ -365,6 +365,32 @@ curl -s http://localhost:8900/api/status
 
 For each additional VPS you want to monitor:
 
+### Option A: One-command onboarding
+
+If your VPS entries already exist in `~/.ssh/config`, run this from your local repo checkout:
+
+```bash
+./scripts/onboard-node.sh \
+  --primary node-a \
+  --node sg-vps \
+  --node-id sg-vps \
+  --node-name "Singapore VPS" \
+  --provider "Oracle" \
+  --yes
+```
+
+The script will:
+- Detect the primary and new node public IPs
+- Read the API token from the primary server config unless `--api-token` is provided
+- Whitelist the new node for port `8900` on the primary server
+- Run the served `/install.sh` agent installer on the new node
+- Verify `starnexus-agent` is active
+- Wait until the node appears in `/api/nodes`
+
+Use `scripts/onboard-node.sh --help` for all options.
+
+### Option B: Manual onboarding
+
 ### 5a. Whitelist the new VPS on the server
 
 SSH into the **primary server** and run:
@@ -414,7 +440,31 @@ curl -s http://localhost:8900/api/nodes
 # The new node should appear in the list
 ```
 
-### 5d. Add link probing (optional)
+### 5d. Update existing agents safely
+
+For existing nodes, use the local sync helper instead of manually stopping and copying binaries:
+
+```bash
+# From your local repo checkout:
+./scripts/sync-agent.sh node-c node-b
+```
+
+The script:
+- Builds a Linux amd64 agent locally
+- Uploads to `/root/starnexus/starnexus-agent.new`
+- Backs up the old remote binary as `starnexus-agent.prev.<timestamp>`
+- Restarts only `starnexus-agent`
+- Leaves remote `config.yaml`, `agent-config.yaml`, GeoIP data, and proxy services unchanged
+
+Useful options:
+
+```bash
+./scripts/sync-agent.sh --install-dir /opt/starnexus --service starnexus-agent vps-alias
+./scripts/sync-agent.sh --binary ./bin/starnexus-agent vps-alias
+./scripts/sync-agent.sh --no-build vps-alias
+```
+
+### 5e. Add link probing (optional)
 
 To measure latency between nodes, edit `~/starnexus/config.yaml` on the new VPS:
 
@@ -564,11 +614,29 @@ scp bin/starnexus-server bin/starnexus-agent bin/starnexus-bot SERVER:~/starnexu
 scp bin/starnexus-agent SERVER:~/starnexus/bin/
 ssh SERVER "systemctl start starnexus-server && sleep 2 && systemctl start starnexus-agent && systemctl start starnexus-bot"
 
-# Update agent on other VPS:
-ssh OTHER_VPS "systemctl stop starnexus-agent"
-scp bin/starnexus-agent OTHER_VPS:~/starnexus/
-ssh OTHER_VPS "systemctl start starnexus-agent"
+# Update agent on other VPS without changing config:
+./scripts/sync-agent.sh OTHER_VPS
 ```
+
+### Telegram bot commands
+
+The bot accepts commands only from `chat_ids` in `bot-config.yaml`.
+
+```text
+/status              Fleet status and nodes
+/analytics           Reliability, anomaly, and experiment summary
+/events              Recent events
+/node <id-or-name>   Node detail summary
+/report              Daily AI report
+/mute [30m|2h|1d]    Pause proactive alerts for this chat
+/unmute              Resume proactive alerts
+/subscribe           Enable proactive alerts
+/unsubscribe         Disable proactive alerts for this chat
+/daily on|off        Toggle the 09:00 UTC+8 analytics summary
+/prefs               Show this chat's alert preferences
+```
+
+Preferences are stored in `starnexus-bot-state.json` in the bot working directory. Commands still work while a chat is muted or unsubscribed; only proactive alerts and daily summaries are filtered.
 
 ### Backup database
 
