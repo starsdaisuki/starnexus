@@ -40,6 +40,9 @@ func TestBuildGroundTruthEvaluationMeasuresDelays(t *testing.T) {
 	if evaluation.Experiments[0].DetectionDelaySeconds != 120 {
 		t.Fatalf("unexpected detection delay: %#v", evaluation.Experiments[0])
 	}
+	if evaluation.Experiments[0].DetectionType != "anomaly" || evaluation.AnomalyDetectionCount != 1 || evaluation.StatusDetectionCount != 0 {
+		t.Fatalf("unexpected detection source: %#v", evaluation)
+	}
 	if !evaluation.Experiments[0].Recovered || evaluation.Experiments[0].RecoveryDelaySeconds != 95 {
 		t.Fatalf("unexpected recovery result: %#v", evaluation.Experiments[0])
 	}

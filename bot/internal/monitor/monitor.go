@@ -100,6 +100,8 @@ type groundTruthAnalytics struct {
 	MeanDetectionDelaySec float64 `json:"mean_detection_delay_seconds"`
 	RecoveryRatePercent   float64 `json:"recovery_rate_percent"`
 	MeanRecoveryDelaySec  float64 `json:"mean_recovery_delay_seconds"`
+	StatusDetectionCount  int     `json:"status_detection_count"`
+	AnomalyDetectionCount int     `json:"anomaly_detection_count"`
 }
 
 type eventSummary struct {
@@ -435,10 +437,12 @@ func (m *Monitor) cmdAnalytics() string {
 	))
 	if dashboard.GroundTruth != nil && dashboard.GroundTruth.ExperimentCount > 0 {
 		sb.WriteString(fmt.Sprintf(
-			"Experiments: %d | detection %.0f%% | mean delay %s\n",
+			"Experiments: %d | detection %.0f%% | mean delay %s | status/anomaly %d/%d\n",
 			dashboard.GroundTruth.ExperimentCount,
 			dashboard.GroundTruth.DetectionRatePercent,
 			formatSeconds(dashboard.GroundTruth.MeanDetectionDelaySec),
+			dashboard.GroundTruth.StatusDetectionCount,
+			dashboard.GroundTruth.AnomalyDetectionCount,
 		))
 	}
 

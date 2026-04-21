@@ -269,10 +269,11 @@ const StarApp = (() => {
     }
 
     document.getElementById('experiment-detection-rate').textContent = `${Number(groundTruth.detection_rate_percent || 0).toFixed(0)}%`
-    document.getElementById('experiment-detection-delay').textContent = `delay ${formatDuration(groundTruth.mean_detection_delay_seconds)}`
+    document.getElementById('experiment-detection-delay').textContent = `delay ${formatDuration(groundTruth.mean_detection_delay_seconds)} • status/anomaly ${groundTruth.status_detection_count || 0}/${groundTruth.anomaly_detection_count || 0}`
     document.getElementById('experiment-recovery-rate').textContent = `${Number(groundTruth.recovery_rate_percent || 0).toFixed(0)}%`
     document.getElementById('experiment-recovery-delay').textContent = `delay ${formatDuration(groundTruth.mean_recovery_delay_seconds)}`
     document.getElementById('experiment-false-positive').textContent = `${groundTruth.false_positive_event_count || 0}`
+    document.getElementById('experiment-false-positive').nextElementSibling.textContent = `status/anomaly ${groundTruth.false_positive_status_count || 0}/${groundTruth.false_positive_anomaly_count || 0}`
 
     ;(groundTruth.experiments || []).slice(0, 6).forEach(experiment => {
       const article = document.createElement('article')
@@ -284,7 +285,7 @@ const StarApp = (() => {
         </div>
         <div class="stack-title">${escapeHtml(experiment.experiment_id || 'experiment')}</div>
         <div class="stack-body">
-          ${escapeHtml(experiment.expected_metric || 'metric')} peak ${formatMetricPeak(experiment)} • detection ${formatDuration(experiment.detection_delay_seconds)} • recovery ${experiment.recovered ? formatDuration(experiment.recovery_delay_seconds) : 'missed'}
+          ${escapeHtml(experiment.expected_metric || 'metric')} peak ${formatMetricPeak(experiment)} • detection ${formatDuration(experiment.detection_delay_seconds)} via ${escapeHtml(experiment.detection_type || 'unknown')} • recovery ${experiment.recovered ? formatDuration(experiment.recovery_delay_seconds) : 'missed'}
         </div>
         <div class="stack-topline">
           <span>${absoluteTime(experiment.started_at)} → ${absoluteTime(experiment.ended_at)}</span>

@@ -100,11 +100,13 @@ Fault-injection labels are stored in JSONL format with known start and end times
 For each labelled experiment, StarNexus measures:
 
 - Whether a detection event occurred inside the detection window.
+- Whether the first detection came from `status_change` or `anomaly`.
 - First detection timestamp and detection delay.
 - Whether a recovery event occurred after the experiment ended.
 - Recovery delay.
 - Peak metric value during the experiment.
 - False-positive detection events outside labelled windows.
+- False-positive breakdown by status events and anomaly events.
 
 Current fault injection is CPU-only and uses `nice + timeout` so it does not alter firewall rules, network shaping, SSH settings, or proxy services.
 

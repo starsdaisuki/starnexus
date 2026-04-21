@@ -66,9 +66,13 @@ type GroundTruthEvaluation struct {
 	DetectedCount             int                    `json:"detected_count"`
 	MissedCount               int                    `json:"missed_count"`
 	RecoveredCount            int                    `json:"recovered_count"`
+	StatusDetectionCount      int                    `json:"status_detection_count"`
+	AnomalyDetectionCount     int                    `json:"anomaly_detection_count"`
 	MeanDetectionDelaySeconds float64                `json:"mean_detection_delay_seconds"`
 	MeanRecoveryDelaySeconds  float64                `json:"mean_recovery_delay_seconds"`
 	FalsePositiveEventCount   int                    `json:"false_positive_event_count"`
+	FalsePositiveStatusCount  int                    `json:"false_positive_status_count"`
+	FalsePositiveAnomalyCount int                    `json:"false_positive_anomaly_count"`
 	DetectionRatePercent      float64                `json:"detection_rate_percent"`
 	RecoveryRatePercent       float64                `json:"recovery_rate_percent"`
 	Experiments               []ExperimentEvaluation `json:"experiments"`
@@ -82,6 +86,8 @@ type ExperimentEvaluation struct {
 	StartedAt             int64    `json:"started_at"`
 	EndedAt               int64    `json:"ended_at"`
 	Detected              bool     `json:"detected"`
+	DetectionType         string   `json:"detection_type,omitempty"`
+	DetectionSeverity     string   `json:"detection_severity,omitempty"`
 	FirstDetectionAt      int64    `json:"first_detection_at,omitempty"`
 	DetectionDelaySeconds int64    `json:"detection_delay_seconds,omitempty"`
 	Recovered             bool     `json:"recovered"`
@@ -173,6 +179,12 @@ func BuildGroundTruthEvaluation(labels []ExperimentLabel, events []db.Event, poi
 		if result.Detected {
 			evaluation.DetectedCount++
 			detectionDelayTotal += result.DetectionDelaySeconds
+			switch result.DetectionType {
+			case "status_change":
+				evaluation.StatusDetectionCount++
+			case "anomaly":
+				evaluation.AnomalyDetectionCount++
+			}
 		} else {
 			evaluation.MissedCount++
 		}
@@ -189,7 +201,7 @@ func BuildGroundTruthEvaluation(labels []ExperimentLabel, events []db.Event, poi
 	if evaluation.RecoveredCount > 0 {
 		evaluation.MeanRecoveryDelaySeconds = float64(recoveryDelayTotal) / float64(evaluation.RecoveredCount)
 	}
-	evaluation.FalsePositiveEventCount = countFalsePositiveEvents(labels, events)
+	evaluation.FalsePositiveEventCount, evaluation.FalsePositiveStatusCount, evaluation.FalsePositiveAnomalyCount = countFalsePositiveEvents(labels, events)
 	evaluation.DetectionRatePercent = float64(evaluation.DetectedCount) / float64(evaluation.ExperimentCount) * 100
 	evaluation.RecoveryRatePercent = float64(evaluation.RecoveredCount) / float64(evaluation.ExperimentCount) * 100
 	return evaluation
@@ -257,6 +269,8 @@ func evaluateExperiment(label ExperimentLabel, events []db.Event, points []db.Me
 		}
 		if event.CreatedAt >= label.StartedAt && event.CreatedAt <= detectionEnd {
 			result.Detected = true
+			result.DetectionType = event.Type
+			result.DetectionSeverity = event.Severity
 			result.FirstDetectionAt = event.CreatedAt
 			result.DetectionDelaySeconds = event.CreatedAt - label.StartedAt
 			result.DetectionTitles = append(result.DetectionTitles, event.Title)
@@ -279,14 +293,19 @@ func evaluateExperiment(label ExperimentLabel, events []db.Event, points []db.Me
 	return result
 }
 
-func countFalsePositiveEvents(labels []ExperimentLabel, events []db.Event) int {
-	count := 0
+func countFalsePositiveEvents(labels []ExperimentLabel, events []db.Event) (total int, statusCount int, anomalyCount int) {
 	for _, event := range events {
 		if !isDetectionEvent(event) {
 			continue
 		}
 		if event.NodeID == nil {
-			count++
+			total++
+			switch event.Type {
+			case "status_change":
+				statusCount++
+			case "anomaly":
+				anomalyCount++
+			}
 			continue
 		}
 		insideExperiment := false
@@ -300,10 +319,16 @@ func countFalsePositiveEvents(labels []ExperimentLabel, events []db.Event) int {
 			}
 		}
 		if !insideExperiment {
-			count++
+			total++
+			switch event.Type {
+			case "status_change":
+				statusCount++
+			case "anomaly":
+				anomalyCount++
+			}
 		}
 	}
-	return count
+	return total, statusCount, anomalyCount
 }
 
 func eventsChronological(events []db.Event) []db.Event {

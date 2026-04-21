@@ -289,7 +289,7 @@ func writeExperimentsCSV(path string, experiments []analytics.ExperimentEvaluati
 	defer file.Close()
 	defer writer.Flush()
 
-	if err := writer.Write([]string{"experiment_id", "node_id", "injection_type", "expected_metric", "started_at", "ended_at", "detected", "first_detection_at", "detection_delay_seconds", "recovered", "first_recovery_at", "recovery_delay_seconds", "peak_metric_value"}); err != nil {
+	if err := writer.Write([]string{"experiment_id", "node_id", "injection_type", "expected_metric", "started_at", "ended_at", "detected", "detection_type", "detection_severity", "first_detection_at", "detection_delay_seconds", "recovered", "first_recovery_at", "recovery_delay_seconds", "peak_metric_value"}); err != nil {
 		return err
 	}
 	for _, experiment := range experiments {
@@ -301,6 +301,8 @@ func writeExperimentsCSV(path string, experiments []analytics.ExperimentEvaluati
 			strconv.FormatInt(experiment.StartedAt, 10),
 			strconv.FormatInt(experiment.EndedAt, 10),
 			strconv.FormatBool(experiment.Detected),
+			experiment.DetectionType,
+			experiment.DetectionSeverity,
 			optionalUnix(experiment.FirstDetectionAt),
 			optionalInt64(experiment.DetectionDelaySeconds),
 			strconv.FormatBool(experiment.Recovered),
@@ -367,11 +369,11 @@ Generated at: %s
 
 	if eval.GroundTruth != nil {
 		gt := eval.GroundTruth
-		if _, err := fmt.Fprintf(file, "\n## Ground-Truth Experiments\n\n- Experiments: %d\n- Detection rate: %.1f%%\n- Mean detection delay: %.1fs\n- Recovery rate: %.1f%%\n- Mean recovery delay: %.1fs\n- False-positive events outside labelled windows: %d\n\n", gt.ExperimentCount, gt.DetectionRatePercent, gt.MeanDetectionDelaySeconds, gt.RecoveryRatePercent, gt.MeanRecoveryDelaySeconds, gt.FalsePositiveEventCount); err != nil {
+		if _, err := fmt.Fprintf(file, "\n## Ground-Truth Experiments\n\n- Experiments: %d\n- Detection rate: %.1f%%\n- Status detections: %d\n- Anomaly detections: %d\n- Mean detection delay: %.1fs\n- Recovery rate: %.1f%%\n- Mean recovery delay: %.1fs\n- False-positive events outside labelled windows: %d (%d status, %d anomaly)\n\n", gt.ExperimentCount, gt.DetectionRatePercent, gt.StatusDetectionCount, gt.AnomalyDetectionCount, gt.MeanDetectionDelaySeconds, gt.RecoveryRatePercent, gt.MeanRecoveryDelaySeconds, gt.FalsePositiveEventCount, gt.FalsePositiveStatusCount, gt.FalsePositiveAnomalyCount); err != nil {
 			return err
 		}
 		for _, experiment := range gt.Experiments {
-			if _, err := fmt.Fprintf(file, "- `%s`: detected=%t delay=%ds recovered=%t recovery=%ds peak_%s=%.1f\n", experiment.ExperimentID, experiment.Detected, experiment.DetectionDelaySeconds, experiment.Recovered, experiment.RecoveryDelaySeconds, experiment.ExpectedMetric, experiment.PeakMetricValue); err != nil {
+			if _, err := fmt.Fprintf(file, "- `%s`: detected=%t via=%s delay=%ds recovered=%t recovery=%ds peak_%s=%.1f\n", experiment.ExperimentID, experiment.Detected, experiment.DetectionType, experiment.DetectionDelaySeconds, experiment.Recovered, experiment.RecoveryDelaySeconds, experiment.ExpectedMetric, experiment.PeakMetricValue); err != nil {
 				return err
 			}
 		}

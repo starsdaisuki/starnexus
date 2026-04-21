@@ -35,9 +35,11 @@ Aggregate dashboard evaluation:
 - Experiments: 3.
 - Detection rate: 100%.
 - Recovery rate: 100%.
+- Status-threshold detections: 3.
+- Anomaly-first detections: 0.
 - Mean detection delay: 33.7 seconds.
 - Mean recovery delay: 23.7 seconds.
-- False-positive event count outside labelled windows: 31 in the active dashboard window.
+- False-positive event count outside labelled windows: 31 in the active dashboard window, split into 2 status events and 29 anomaly events.
 
 ## Incident Lifecycle Check
 
