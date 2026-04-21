@@ -80,7 +80,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 - Multi-chat support (alerts sent to multiple Telegram users)
 
 ### Web Frontend
-- Observatory dashboard with summary cards, active incidents, event feed, node matrix, link diagnostics, and right-side node detail
+- Observatory dashboard with summary cards, control-plane health, active incidents, event feed, node matrix, link diagnostics, and right-side node detail
 - Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen mode
 - Day/night terminator line (updates every 60s)
 - Animated node markers with glow effects (online/degraded/offline)

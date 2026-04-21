@@ -270,6 +270,7 @@ body::before {
 .panel-experiments,
 .panel-reliability,
 .panel-incidents,
+.panel-control-plane,
 .panel-links,
 .panel-sources {
   min-height: 280px;
@@ -334,7 +335,8 @@ body::before {
 }
 
 .experiment-metrics,
-.reliability-metrics {
+.reliability-metrics,
+.control-plane-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
@@ -342,7 +344,8 @@ body::before {
 }
 
 .experiment-metrics article,
-.reliability-metrics article {
+.reliability-metrics article,
+.control-plane-grid article {
   border-radius: 16px;
   padding: 12px;
   background: rgba(3, 10, 15, 0.62);
@@ -351,7 +354,9 @@ body::before {
 
 .experiment-metrics span,
 .experiment-metrics small,
-.reliability-metrics span {
+.reliability-metrics span,
+.control-plane-grid span,
+.control-plane-grid small {
   display: block;
   color: var(--muted);
   font-family: var(--mono);
@@ -361,11 +366,16 @@ body::before {
 }
 
 .experiment-metrics strong,
-.reliability-metrics strong {
+.reliability-metrics strong,
+.control-plane-grid strong {
   display: block;
   margin: 8px 0 6px;
   font-size: 24px;
   letter-spacing: -0.03em;
+}
+
+.control-plane-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .quality-pill {
@@ -1046,6 +1056,7 @@ tbody tr.active {
   .analytics-overview,
   .experiment-metrics,
   .reliability-metrics,
+  .control-plane-grid,
   .chart-grid,
   .detail-stats {
     grid-template-columns: 1fr;

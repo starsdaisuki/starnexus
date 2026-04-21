@@ -7,9 +7,11 @@ const StarApp = (() => {
 
   const state = {
     dashboard: null,
+    health: null,
     detail: null,
     selectedNodeId: null,
     dashboardTimer: null,
+    healthTimer: null,
     detailTimer: null,
     connectionTimer: null,
     tickTimer: null,
@@ -28,9 +30,11 @@ const StarApp = (() => {
     bindUI()
 
     await fetchDashboard()
+    await fetchHealth()
     await fetchConnections()
 
     state.dashboardTimer = setInterval(fetchDashboard, DASHBOARD_INTERVAL)
+    state.healthTimer = setInterval(fetchHealth, DASHBOARD_INTERVAL)
     state.detailTimer = setInterval(fetchNodeDetails, DETAIL_INTERVAL)
     state.connectionTimer = setInterval(fetchConnections, CONNECTION_INTERVAL)
     state.tickTimer = setInterval(updateLastUpdateDisplay, UPDATE_TICK)
@@ -41,6 +45,7 @@ const StarApp = (() => {
 
     document.getElementById('btn-refresh').addEventListener('click', async () => {
       await fetchDashboard()
+      await fetchHealth()
       await fetchConnections()
     })
 
@@ -95,6 +100,20 @@ const StarApp = (() => {
     }
   }
 
+  async function fetchHealth() {
+    try {
+      const response = await fetch(`${API_BASE}/health`)
+      if (!response.ok && response.status !== 503) {
+        throw new Error(`health request failed with ${response.status}`)
+      }
+      state.health = await response.json()
+      renderControlPlane(state.health)
+    } catch (error) {
+      console.error('Health fetch failed', error)
+      renderControlPlane(null)
+    }
+  }
+
   async function fetchNodeDetails() {
     if (!state.selectedNodeId) return
 
@@ -141,6 +160,7 @@ const StarApp = (() => {
 
     renderSummary(nodes, state.dashboard.status || {}, state.dashboard.links || [], state.dashboard.hot_sources || [], scores)
     renderIncidents(state.dashboard.incidents || [])
+    renderControlPlane(state.health)
     renderEvents(state.dashboard.events || [])
     renderFleetRadar(state.dashboard.fleet_analytics || {})
     renderGroundTruth(state.dashboard.ground_truth || null)
@@ -220,6 +240,43 @@ const StarApp = (() => {
         article.addEventListener('click', () => selectNode(incident.node_id))
       }
     })
+  }
+
+  function renderControlPlane(health) {
+    const badge = document.getElementById('health-status-badge')
+    const componentsRoot = document.getElementById('health-components')
+    if (!badge || !componentsRoot) return
+
+    componentsRoot.innerHTML = ''
+    if (!health) {
+      badge.className = 'health-badge offline'
+      badge.textContent = 'Unknown'
+      document.getElementById('health-version').textContent = '--'
+      document.getElementById('health-build').textContent = 'health endpoint unavailable'
+      document.getElementById('health-db').textContent = '--'
+      document.getElementById('health-db-detail').textContent = '--'
+      componentsRoot.innerHTML = emptyListItem('Control-plane health is unavailable.')
+      return
+    }
+
+    const status = health.status || 'unknown'
+    badge.className = `health-badge ${status === 'ok' ? 'online' : status === 'degraded' ? 'degraded' : 'offline'}`
+    badge.textContent = status
+    document.getElementById('health-version').textContent = `${health.version?.commit || 'unknown'}`
+    document.getElementById('health-build').textContent = `${health.version?.component || 'server'} • ${health.version?.build_time || 'build time unknown'} • uptime ${formatDuration(health.uptime_seconds)}`
+    document.getElementById('health-db').textContent = health.database?.quick_check || '--'
+    document.getElementById('health-db-detail').textContent = `migration ${health.database?.latest_migration ?? '--'} • ${health.database?.node_count ?? 0} nodes • ${health.database?.incident_count ?? 0} incidents`
+
+    ;(health.components || []).forEach(component => {
+      componentsRoot.insertAdjacentHTML('beforeend', stackItem(
+        `${escapeHtml(component.name)} • ${component.ok ? 'ok' : 'attention'}`,
+        `${escapeHtml(component.status || 'unknown')}${component.detail ? ` • ${escapeHtml(component.detail)}` : ''}`,
+        `${escapeHtml(component.path || 'not configured')}`
+      ))
+    })
+    if (!(health.components || []).length) {
+      componentsRoot.innerHTML = emptyListItem('No component checks returned.')
+    }
   }
 
   function renderFleetRadar(fleetAnalytics) {
