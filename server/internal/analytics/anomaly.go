@@ -3,7 +3,6 @@ package analytics
 import (
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/starsdaisuki/starnexus/server/internal/db"
@@ -11,8 +10,17 @@ import (
 
 const (
 	minDataPoints       = 100
-	anomalyDedupSeconds = 3 * 3600
+	anomalyDedupSeconds = 6 * 3600
 )
+
+type anomalyPolicy struct {
+	RobustZThreshold  float64
+	ShiftScoreMinimum float64
+	MinCurrent        float64
+	MinRecentMedian   float64
+	MinDelta          float64
+	MinDeltaPercent   float64
+}
 
 type AnomalyAlert struct {
 	NodeID    string
@@ -74,7 +82,7 @@ func RunAnomalyDetection(database *db.DB) []AnomalyAlert {
 func buildNodeAlerts(nodeID, nodeName string, detail DetailAnalytics) []AnomalyAlert {
 	var alerts []AnomalyAlert
 	for _, metric := range []MetricAnalysis{detail.CPU, detail.Memory, detail.BandwidthDown, detail.Connections} {
-		if metric.Outlier && math.Abs(metric.RobustZ) >= 4 {
+		if shouldAlertOutlier(metric) {
 			alerts = append(alerts, AnomalyAlert{
 				NodeID:    nodeID,
 				NodeName:  nodeName,
@@ -86,7 +94,7 @@ func buildNodeAlerts(nodeID, nodeName string, detail DetailAnalytics) []AnomalyA
 				RiskLevel: detail.RiskLevel,
 			})
 		}
-		if metric.Shift.Significant && math.Abs(metric.Shift.ShiftScore) >= 3 {
+		if shouldAlertShift(metric) {
 			alerts = append(alerts, AnomalyAlert{
 				NodeID:    nodeID,
 				NodeName:  nodeName,
@@ -103,15 +111,117 @@ func buildNodeAlerts(nodeID, nodeName string, detail DetailAnalytics) []AnomalyA
 }
 
 func severityForMetric(metric MetricAnalysis, riskLevel string) string {
-	if riskLevel == "critical" || metric.Current >= 90 || math.Abs(metric.Shift.ShiftScore) >= 5 {
-		return "critical"
+	switch metric.Label {
+	case "CPU":
+		if metric.Current >= 90 || metric.Shift.RecentMedian >= 85 || riskLevel == "critical" {
+			return "critical"
+		}
+	case "Memory":
+		if metric.Current >= 92 || metric.Shift.RecentMedian >= 90 || riskLevel == "critical" {
+			return "critical"
+		}
+	case "Connections":
+		if metric.Current >= 500 || metric.Shift.RecentMedian >= 500 {
+			return "critical"
+		}
+	case "Bandwidth Down":
+		if metric.Current >= 10240 || metric.Shift.RecentMedian >= 10240 {
+			return "critical"
+		}
 	}
 	return "warning"
 }
 
+func shouldAlertOutlier(metric MetricAnalysis) bool {
+	policy := policyForMetric(metric.Label)
+	if !metric.Outlier {
+		return false
+	}
+	if metric.RobustZ < policy.RobustZThreshold {
+		return false
+	}
+	if metric.Current < policy.MinCurrent {
+		return false
+	}
+	if metric.Current-metric.Median < policy.MinDelta {
+		return false
+	}
+	return true
+}
+
+func shouldAlertShift(metric MetricAnalysis) bool {
+	policy := policyForMetric(metric.Label)
+	if !metric.Shift.Significant {
+		return false
+	}
+	if metric.Shift.ShiftScore < policy.ShiftScoreMinimum {
+		return false
+	}
+	if metric.Shift.RecentMedian < policy.MinRecentMedian {
+		return false
+	}
+	if metric.Shift.RecentMedian-metric.Shift.BaselineMedian < policy.MinDelta {
+		return false
+	}
+	if metric.Shift.DeltaPercent < policy.MinDeltaPercent {
+		return false
+	}
+	return true
+}
+
+func policyForMetric(label string) anomalyPolicy {
+	switch label {
+	case "CPU":
+		return anomalyPolicy{
+			RobustZThreshold:  5.5,
+			ShiftScoreMinimum: 4,
+			MinCurrent:        70,
+			MinRecentMedian:   55,
+			MinDelta:          15,
+			MinDeltaPercent:   30,
+		}
+	case "Memory":
+		return anomalyPolicy{
+			RobustZThreshold:  5,
+			ShiftScoreMinimum: 4,
+			MinCurrent:        80,
+			MinRecentMedian:   75,
+			MinDelta:          8,
+			MinDeltaPercent:   15,
+		}
+	case "Connections":
+		return anomalyPolicy{
+			RobustZThreshold:  6,
+			ShiftScoreMinimum: 4.5,
+			MinCurrent:        100,
+			MinRecentMedian:   100,
+			MinDelta:          50,
+			MinDeltaPercent:   80,
+		}
+	case "Bandwidth Down":
+		return anomalyPolicy{
+			RobustZThreshold:  8,
+			ShiftScoreMinimum: 5,
+			MinCurrent:        1024,
+			MinRecentMedian:   1024,
+			MinDelta:          512,
+			MinDeltaPercent:   100,
+		}
+	default:
+		return anomalyPolicy{
+			RobustZThreshold:  6,
+			ShiftScoreMinimum: 5,
+			MinCurrent:        1,
+			MinRecentMedian:   1,
+			MinDelta:          1,
+			MinDeltaPercent:   50,
+		}
+	}
+}
+
 func formatOutlierMessage(metric MetricAnalysis, riskLevel string) string {
 	return fmt.Sprintf(
-		"%s is outside its robust baseline: current %.1f, median %.1f, robust z %.1f (%s risk).",
+		"%s pressure is above its robust baseline: current %.1f, median %.1f, robust z %.1f (%s risk).",
 		metric.Label,
 		metric.Current,
 		metric.Median,
@@ -122,7 +232,7 @@ func formatOutlierMessage(metric MetricAnalysis, riskLevel string) string {
 
 func formatShiftMessage(metric MetricAnalysis, riskLevel string) string {
 	return fmt.Sprintf(
-		"%s shifted versus baseline: recent median %.1f vs baseline %.1f (%.0f%%, shift score %.1f, %s risk).",
+		"%s pressure shifted upward versus baseline: recent median %.1f vs baseline %.1f (%.0f%%, shift score %.1f, %s risk).",
 		metric.Label,
 		metric.Shift.RecentMedian,
 		metric.Shift.BaselineMedian,
