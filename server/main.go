@@ -13,6 +13,7 @@ import (
 	"github.com/starsdaisuki/starnexus/server/internal/alert"
 	"github.com/starsdaisuki/starnexus/server/internal/analytics"
 	"github.com/starsdaisuki/starnexus/server/internal/api"
+	"github.com/starsdaisuki/starnexus/server/internal/buildinfo"
 	"github.com/starsdaisuki/starnexus/server/internal/config"
 	"github.com/starsdaisuki/starnexus/server/internal/db"
 	"github.com/starsdaisuki/starnexus/server/internal/locations"
@@ -21,6 +22,10 @@ import (
 func main() {
 	cfgPath := "config.yaml"
 	if len(os.Args) > 1 {
+		if os.Args[1] == "--version" || os.Args[1] == "version" {
+			fmt.Println(buildinfo.Current("starnexus-server").String())
+			return
+		}
 		cfgPath = os.Args[1]
 	}
 

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/starsdaisuki/starnexus/bot/internal/buildinfo"
 	"github.com/starsdaisuki/starnexus/bot/internal/config"
 	"github.com/starsdaisuki/starnexus/bot/internal/monitor"
 	"github.com/starsdaisuki/starnexus/bot/internal/telegram"
@@ -14,6 +16,10 @@ import (
 func main() {
 	cfgPath := "config.yaml"
 	if len(os.Args) > 1 {
+		if os.Args[1] == "--version" || os.Args[1] == "version" {
+			fmt.Println(buildinfo.Current("starnexus-bot").String())
+			return
+		}
 		cfgPath = os.Args[1]
 	}
 

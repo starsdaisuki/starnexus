@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/starsdaisuki/starnexus/server/internal/db"
 	"github.com/starsdaisuki/starnexus/server/internal/locations"
@@ -26,6 +27,7 @@ type Server struct {
 	connStore            *ConnStore
 	nodeLocations        *locations.Store
 	mux                  *http.ServeMux
+	startedAt            int64
 }
 
 func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath, experimentLabelsPath string, nodeLocations *locations.Store) *Server {
@@ -39,6 +41,7 @@ func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath, experimen
 		connStore:            NewConnStore(),
 		nodeLocations:        nodeLocations,
 		mux:                  http.NewServeMux(),
+		startedAt:            time.Now().Unix(),
 	}
 	s.routes()
 	return s
@@ -56,6 +59,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	// Public API
 	s.mux.HandleFunc("GET /api/dashboard", s.handleGetDashboard)
+	s.mux.HandleFunc("GET /api/health", s.handleGetHealth)
+	s.mux.HandleFunc("GET /api/version", s.handleGetVersion)
 	s.mux.HandleFunc("GET /api/nodes", s.handleGetNodes)
 	s.mux.HandleFunc("GET /api/nodes/{id}", s.handleGetNode)
 	s.mux.HandleFunc("GET /api/nodes/{id}/details", s.handleGetNodeDetails)

@@ -49,6 +49,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 
 ### Server
 - HTTP API (net/http) + SQLite (modernc.org/sqlite, pure Go)
+- `/api/health` and `/api/version` for control-plane health and build metadata
 - Node registration via agent self-report
 - Offline detection (configurable threshold)
 - Threshold alerts (CPU > 80%, memory > 90%)

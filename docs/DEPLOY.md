@@ -357,6 +357,11 @@ systemctl is-active starnexus-server starnexus-agent starnexus-bot
 
 curl -s http://localhost:8900/api/status
 # Should print: {"total":1,"online":1,...}
+
+curl -s http://localhost:8900/api/health
+./starnexus-server --version
+./starnexus-agent --version
+./starnexus-bot --version
 ```
 
 ---

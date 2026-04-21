@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -8,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/starsdaisuki/starnexus/agent/internal/buildinfo"
 	"github.com/starsdaisuki/starnexus/agent/internal/collector"
 	"github.com/starsdaisuki/starnexus/agent/internal/config"
 	"github.com/starsdaisuki/starnexus/agent/internal/geoip"
@@ -18,6 +20,10 @@ import (
 func main() {
 	cfgPath := "config.yaml"
 	if len(os.Args) > 1 {
+		if os.Args[1] == "--version" || os.Args[1] == "version" {
+			fmt.Println(buildinfo.Current("starnexus-agent").String())
+			return
+		}
 		cfgPath = os.Args[1]
 	}
 

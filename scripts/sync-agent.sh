@@ -76,7 +76,11 @@ fi
 if [[ "$BUILD" -eq 1 ]]; then
   info "Building Linux amd64 agent"
   mkdir -p "$(dirname "$BINARY")"
-  (cd "$ROOT_DIR/agent" && GOOS=linux GOARCH=amd64 go build -o "$BINARY" .)
+  VERSION="${VERSION:-dev}"
+  COMMIT="$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  AGENT_LDFLAGS="-X github.com/starsdaisuki/starnexus/agent/internal/buildinfo.Version=$VERSION -X github.com/starsdaisuki/starnexus/agent/internal/buildinfo.Commit=$COMMIT -X github.com/starsdaisuki/starnexus/agent/internal/buildinfo.BuildTime=$BUILD_TIME"
+  (cd "$ROOT_DIR/agent" && GOOS=linux GOARCH=amd64 go build -ldflags "$AGENT_LDFLAGS" -o "$BINARY" .)
 fi
 
 if [[ ! -x "$BINARY" ]]; then
