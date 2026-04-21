@@ -365,6 +365,32 @@ curl -s http://localhost:8900/api/status
 
 For each additional VPS you want to monitor:
 
+### Option A: One-command onboarding
+
+If your VPS entries already exist in `~/.ssh/config`, run this from your local repo checkout:
+
+```bash
+./scripts/onboard-node.sh \
+  --primary dmit \
+  --node sg-vps \
+  --node-id sg-vps \
+  --node-name "Singapore VPS" \
+  --provider "Oracle" \
+  --yes
+```
+
+The script will:
+- Detect the primary and new node public IPs
+- Read the API token from the primary server config unless `--api-token` is provided
+- Whitelist the new node for port `8900` on the primary server
+- Run the served `/install.sh` agent installer on the new node
+- Verify `starnexus-agent` is active
+- Wait until the node appears in `/api/nodes`
+
+Use `scripts/onboard-node.sh --help` for all options.
+
+### Option B: Manual onboarding
+
 ### 5a. Whitelist the new VPS on the server
 
 SSH into the **primary server** and run:
