@@ -92,10 +92,8 @@ Deliverables:
 
 ### 4. Operational Hardening
 
-After incident lifecycle and evaluation:
+After incident lifecycle, evaluation, and baseline backup tooling:
 
-- Backup and restore scripts for SQLite.
-- Restore verification workflow.
 - Server/bot/agent health endpoints.
 - Version metadata in binaries.
 - Optional disk-backed agent queue for primary-server outages.

@@ -638,11 +638,14 @@ The bot accepts commands only from `chat_ids` in `bot-config.yaml`.
 
 Preferences are stored in `starnexus-bot-state.json` in the bot working directory. Commands still work while a chat is muted or unsubscribed; only proactive alerts and daily summaries are filtered.
 
-### Backup database
+### Backup and restore database
 
 ```bash
-scp SERVER:~/starnexus/starnexus.db ./starnexus-backup-$(date +%Y%m%d).db
+scripts/backup-db.sh --host dmit
+scripts/restore-db.sh --host dmit --backup backups/starnexus-db-dmit-YYYYMMDDTHHMMSSZ.sqlite.gz
 ```
+
+`backup-db.sh` uses SQLite `.backup` on the remote host so the snapshot is consistent even while the server is running. `restore-db.sh` stops `starnexus-server` and `starnexus-bot`, saves the current database as `starnexus.db.pre-restore.<timestamp>`, restores the backup, removes stale WAL/SHM sidecars, restarts services, and verifies `/api/status`.
 
 ### Remove a node
 

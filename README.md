@@ -104,6 +104,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 ### Deployment
 - One-liner agent install: `curl -sSL http://<server>:8900/install.sh | bash -s -- --server ... --token ... --node-id ...`
 - Heartbeat watchdog on secondary VPS (cron-based, independent of bot)
+- Consistent SQLite backup and guarded restore scripts
 - systemd services for all modules
 - Firewall: port 8900 restricted to known VPS IPs only, web UI via SSH tunnel
 
