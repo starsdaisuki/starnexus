@@ -119,6 +119,9 @@ The bot now supports:
 
 - `/status`: fleet status and nodes.
 - `/analytics`: reliability, anomaly, and experiment summary.
+- `/incidents`: active incident lifecycle state.
+- `/ack <id>`: acknowledge a specific incident.
+- `/silence <id> [30m|2h|1d]`: suppress one incident without muting the whole chat.
 - `/events`: recent events.
 - `/node <id-or-name>`: node detail summary.
 - `/report`: daily AI report.
@@ -318,11 +321,12 @@ Improve `scripts/onboard-node.sh` with:
 
 ### 5. Academic Write-Up
 
-Add:
+Add or keep expanding:
 
 - `docs/METHOD.md`: architecture, metrics, robust statistics, reliability score.
 - `docs/RESULTS.md`: experiment results and interpretation.
 - `docs/LIMITATIONS.md`: scope, assumptions, risks.
+- `docs/ROADMAP.md`: maintained execution plan.
 
 ## Suggested Project Pitch
 

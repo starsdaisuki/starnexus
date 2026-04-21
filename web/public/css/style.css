@@ -269,6 +269,7 @@ body::before {
 .panel-radar,
 .panel-experiments,
 .panel-reliability,
+.panel-incidents,
 .panel-links,
 .panel-sources {
   min-height: 280px;
@@ -479,6 +480,7 @@ body::before {
 }
 
 .event-item,
+.incident-item,
 .stack-item {
   border-radius: 18px;
   padding: 14px;
@@ -486,12 +488,14 @@ body::before {
   background: rgba(3, 10, 15, 0.6);
 }
 
-.event-item {
+.event-item,
+.incident-card {
   position: relative;
   padding-left: 18px;
 }
 
-.event-item::before {
+.event-item::before,
+.incident-card::before {
   content: "";
   position: absolute;
   left: 0;
@@ -502,12 +506,57 @@ body::before {
   background: var(--cyan);
 }
 
-.event-item.warning::before {
+.event-item.warning::before,
+.incident-card.warning::before {
   background: var(--amber);
 }
 
-.event-item.critical::before {
+.event-item.critical::before,
+.incident-card.critical::before {
   background: var(--red);
+}
+
+.incident-card.acknowledged::before {
+  opacity: 0.55;
+}
+
+.incident-card.suppressed::before {
+  background: var(--violet);
+}
+
+.incident-card.recovered::before {
+  background: var(--lime);
+}
+
+.incident-state {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(255, 186, 74, 0.12);
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.incident-state.open {
+  background: rgba(255, 109, 100, 0.12);
+  color: var(--red);
+}
+
+.incident-state.acknowledged {
+  background: rgba(105, 227, 255, 0.12);
+  color: var(--cyan);
+}
+
+.incident-state.suppressed {
+  background: rgba(140, 176, 255, 0.12);
+  color: var(--violet);
+}
+
+.incident-state.recovered {
+  background: rgba(135, 255, 134, 0.12);
+  color: var(--lime);
 }
 
 .event-topline,

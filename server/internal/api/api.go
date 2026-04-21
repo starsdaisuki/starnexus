@@ -64,12 +64,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/history/{id}", s.handleGetHistory)
 	s.mux.HandleFunc("GET /api/scores", s.handleGetScores)
 	s.mux.HandleFunc("GET /api/events", s.handleGetEvents)
+	s.mux.HandleFunc("GET /api/incidents", s.handleGetIncidents)
 
 	// Agent API (auth required)
 	s.mux.HandleFunc("POST /api/report", s.requireAuth(s.handleReport))
 	s.mux.HandleFunc("POST /api/nodes", s.requireAuth(s.handleCreateNode))
 	s.mux.HandleFunc("DELETE /api/nodes/{id}", s.requireAuth(s.handleDeleteNode))
 	s.mux.HandleFunc("GET /api/daily-report", s.requireAuth(s.handleDailyReport))
+	s.mux.HandleFunc("POST /api/incidents/{id}/ack", s.requireAuth(s.handleAckIncident))
+	s.mux.HandleFunc("POST /api/incidents/{id}/suppress", s.requireAuth(s.handleSuppressIncident))
 	s.mux.HandleFunc("POST /api/connections", s.requireAuth(s.handlePostConnections))
 	s.mux.HandleFunc("GET /api/connections", s.handleGetConnections)
 
@@ -222,6 +225,20 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 			title = "Node degraded"
 		}
 		_ = s.db.RecordEvent(req.NodeID, "status_change", severity, title, reason, "")
+		switch targetStatus {
+		case "online":
+			if _, err := s.db.RecoverNodeIncidents(req.NodeID, "node_offline", "node_degraded"); err != nil {
+				log.Printf("RecoverNodeIncidents error: %v", err)
+			}
+		case "degraded":
+			if _, err := s.db.RecoverNodeIncidents(req.NodeID, "node_offline"); err != nil {
+				log.Printf("RecoverNodeIncidents error: %v", err)
+			}
+			fingerprint := db.BuildIncidentFingerprint(req.NodeID, "node_degraded", "Node degraded")
+			if _, err := s.db.UpsertIncident(req.NodeID, "node_degraded", "warning", "Node degraded", reason, fingerprint, ""); err != nil {
+				log.Printf("UpsertIncident error: %v", err)
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

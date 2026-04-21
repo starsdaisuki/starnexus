@@ -109,6 +109,28 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_node_time ON events(node_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS incidents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT REFERENCES nodes(id),
+    type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    title TEXT NOT NULL,
+    body TEXT,
+    fingerprint TEXT NOT NULL,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    recovered_at INTEGER,
+    acknowledged_at INTEGER,
+    acknowledged_by TEXT,
+    suppress_until INTEGER,
+    event_count INTEGER DEFAULT 1,
+    metadata TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_incidents_status_last_seen ON incidents(status, last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_incidents_node_status ON incidents(node_id, status, last_seen DESC);
+CREATE INDEX IF NOT EXISTS idx_incidents_fingerprint_status ON incidents(fingerprint, status);
+
 CREATE TABLE IF NOT EXISTS connection_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     node_id TEXT NOT NULL REFERENCES nodes(id),

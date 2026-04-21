@@ -52,6 +52,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 - Node registration via agent self-report
 - Offline detection (configurable threshold)
 - Threshold alerts (CPU > 80%, memory > 90%)
+- Incident lifecycle model: open, acknowledged, suppressed, recovered
 - Static file serving for web frontend
 - Agent binary + GeoIP DB + install script download endpoints
 - Data analytics: downsampling, anomaly detection, node scoring
@@ -71,13 +72,14 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 - Alert debouncing (no spam for the same issue)
 - Reverse heartbeat: pings server every 5 min, alerts after 3 failures
 - `/status` command: node summary
-- `/analytics`, `/events`, and `/node <id-or-name>` commands for operational inspection
+- `/analytics`, `/incidents`, `/events`, and `/node <id-or-name>` commands for operational inspection
+- `/ack <id>` and `/silence <id> [30m|2h|1d]` for incident lifecycle operations
 - `/report` command: on-demand daily report with AI analysis
 - Per-chat alert preferences: `/mute`, `/unmute`, `/subscribe`, `/unsubscribe`, `/daily on|off`, `/prefs`
 - Multi-chat support (alerts sent to multiple Telegram users)
 
 ### Web Frontend
-- Observatory dashboard with summary cards, event feed, node matrix, link diagnostics, and right-side node detail
+- Observatory dashboard with summary cards, active incidents, event feed, node matrix, link diagnostics, and right-side node detail
 - Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen mode
 - Day/night terminator line (updates every 60s)
 - Animated node markers with glow effects (online/degraded/offline)
@@ -88,7 +90,7 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
   - Cloudflare CDN aggregation by /16 subnet
   - Hover tooltip with per-IP breakdown
   - Line thickness by transfer rate
-- Node detail panel: trends, historical events, status history, ingress summary, and statistical highlights
+- Node detail panel: trends, incidents, historical events, status history, ingress summary, and statistical highlights
 - Connection toggle button
 
 ### Analytics (automatic)
@@ -161,7 +163,7 @@ Run `make analyze` to export `nodes.csv`, `metrics.csv`, `events.csv`, `connecti
 
 CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file.
 
-For the current project status, recent upgrade summary, level assessment, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md).
+For the current project status, recent upgrade summary, level assessment, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## License
 

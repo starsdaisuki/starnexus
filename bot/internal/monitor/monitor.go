@@ -49,6 +49,7 @@ type dashboardResponse struct {
 	Status      statusResponse        `json:"status"`
 	Nodes       []Node                `json:"nodes"`
 	Events      []eventSummary        `json:"events"`
+	Incidents   []incidentSummary     `json:"incidents"`
 	Fleet       fleetAnalytics        `json:"fleet_analytics"`
 	Reliability reliabilityAnalytics  `json:"reliability_analytics"`
 	GroundTruth *groundTruthAnalytics `json:"ground_truth,omitempty"`
@@ -111,6 +112,25 @@ type eventSummary struct {
 	CreatedAt int64   `json:"created_at"`
 }
 
+type incidentSummary struct {
+	ID            int64   `json:"id"`
+	NodeID        *string `json:"node_id,omitempty"`
+	NodeName      *string `json:"node_name,omitempty"`
+	Type          string  `json:"type"`
+	Severity      string  `json:"severity"`
+	Status        string  `json:"status"`
+	Title         string  `json:"title"`
+	Body          *string `json:"body,omitempty"`
+	FirstSeen     int64   `json:"first_seen"`
+	LastSeen      int64   `json:"last_seen"`
+	SuppressUntil *int64  `json:"suppress_until,omitempty"`
+	EventCount    int     `json:"event_count"`
+}
+
+type incidentsResponse struct {
+	Incidents []incidentSummary `json:"incidents"`
+}
+
 type nodeDetailsResponse struct {
 	Node  Node `json:"node"`
 	Score *struct {
@@ -123,7 +143,8 @@ type nodeDetailsResponse struct {
 		Summary    string   `json:"summary"`
 		Highlights []string `json:"highlights"`
 	} `json:"analytics,omitempty"`
-	Events []eventSummary `json:"events"`
+	Events    []eventSummary    `json:"events"`
+	Incidents []incidentSummary `json:"incidents"`
 }
 
 type chatPreference struct {
@@ -238,8 +259,14 @@ func (m *Monitor) HandleCommand(chatID int64, command string) string {
 		return m.cmdAnalytics()
 	case "/events":
 		return m.cmdEvents()
+	case "/incidents":
+		return m.cmdIncidents()
 	case "/node":
 		return m.cmdNode(fields[1:])
+	case "/ack":
+		return m.cmdAck(fields[1:])
+	case "/silence":
+		return m.cmdSilence(fields[1:])
 	case "/mute":
 		return m.cmdMute(chatID, fields[1:])
 	case "/unmute":
@@ -473,6 +500,70 @@ func (m *Monitor) cmdEvents() string {
 	return strings.TrimSpace(sb.String())
 }
 
+// --- /incidents command ---
+
+func (m *Monitor) cmdIncidents() string {
+	incidents, err := m.fetchIncidents(false)
+	if err != nil {
+		return fmt.Sprintf("Failed to fetch incidents: %v", err)
+	}
+	if len(incidents) == 0 {
+		return "No active incidents."
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<b>Active Incidents</b>\n")
+	for _, incident := range incidents[:minInt(8, len(incidents))] {
+		sb.WriteString(formatIncidentLine(incident))
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\nUse /ack &lt;id&gt; or /silence &lt;id&gt; [30m|2h|1d].")
+	return strings.TrimSpace(sb.String())
+}
+
+func (m *Monitor) cmdAck(args []string) string {
+	if len(args) == 0 {
+		return "Usage: /ack <incident-id>"
+	}
+	id, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil || id <= 0 {
+		return "Usage: /ack <incident-id>"
+	}
+	incident, err := m.postIncidentAction(id, "ack", map[string]any{"actor": "telegram"})
+	if err != nil {
+		return fmt.Sprintf("Failed to acknowledge incident: %v", err)
+	}
+	return fmt.Sprintf("Acknowledged incident #%d: %s", incident.ID, escapeHTML(incident.Title))
+}
+
+func (m *Monitor) cmdSilence(args []string) string {
+	if len(args) == 0 {
+		return "Usage: /silence <incident-id> [30m|2h|1d]"
+	}
+	id, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil || id <= 0 {
+		return "Usage: /silence <incident-id> [30m|2h|1d]"
+	}
+	duration := time.Hour
+	if len(args) > 1 {
+		duration, err = parseMuteDuration(args[1])
+		if err != nil {
+			return "Usage: /silence <incident-id> [30m|2h|1d]"
+		}
+	}
+	if duration > 7*24*time.Hour {
+		duration = 7 * 24 * time.Hour
+	}
+	incident, err := m.postIncidentAction(id, "suppress", map[string]any{
+		"actor":            "telegram",
+		"duration_seconds": int64(duration.Seconds()),
+	})
+	if err != nil {
+		return fmt.Sprintf("Failed to silence incident: %v", err)
+	}
+	return fmt.Sprintf("Silenced incident #%d for %s: %s", incident.ID, formatDuration(duration), escapeHTML(incident.Title))
+}
+
 // --- /node command ---
 
 func (m *Monitor) cmdNode(args []string) string {
@@ -528,6 +619,9 @@ func (m *Monitor) cmdNode(args []string) string {
 	if len(detail.Events) > 0 {
 		sb.WriteString(fmt.Sprintf("Recent event: %s\n", escapeHTML(detail.Events[0].Title)))
 	}
+	if len(detail.Incidents) > 0 {
+		sb.WriteString(fmt.Sprintf("Incident: %s\n", formatIncidentLine(detail.Incidents[0])))
+	}
 	return strings.TrimSpace(sb.String())
 }
 
@@ -538,6 +632,9 @@ func (m *Monitor) cmdHelp() string {
 		"<b>StarNexus Bot</b>",
 		"/status - fleet status and nodes",
 		"/analytics - reliability, anomaly, experiment summary",
+		"/incidents - active incident lifecycle state",
+		"/ack &lt;id&gt; - acknowledge an incident",
+		"/silence &lt;id&gt; [30m|2h|1d] - suppress one incident",
 		"/events - latest events",
 		"/node &lt;id-or-name&gt; - node detail summary",
 		"/mute [30m|2h|1d] - pause proactive alerts for this chat",
@@ -740,6 +837,56 @@ func (m *Monitor) fetchNodeDetails(nodeID string) (*nodeDetailsResponse, error) 
 	return &data, nil
 }
 
+func (m *Monitor) fetchIncidents(recent bool) ([]incidentSummary, error) {
+	url := m.serverURL + "/api/incidents?limit=20"
+	if recent {
+		url += "&status=recent"
+	}
+	resp, err := m.client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
+	}
+
+	var data incidentsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	return data.Incidents, nil
+}
+
+func (m *Monitor) postIncidentAction(id int64, action string, payload map[string]any) (*incidentSummary, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/incidents/%d/%s", m.serverURL, id, action), strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+m.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
+	}
+
+	var incident incidentSummary
+	if err := json.NewDecoder(resp.Body).Decode(&incident); err != nil {
+		return nil, err
+	}
+	return &incident, nil
+}
+
 func (m *Monitor) dailySummary() {
 	now := time.Now().UTC()
 	windowStart := time.Date(now.Year(), now.Month(), now.Day(), 1, 0, 0, 0, time.UTC)
@@ -877,6 +1024,43 @@ func severityIcon(severity string) string {
 	default:
 		return "\xe2\x9a\xaa"
 	}
+}
+
+func formatIncidentLine(incident incidentSummary) string {
+	nodeName := "system"
+	if incident.NodeName != nil && *incident.NodeName != "" {
+		nodeName = *incident.NodeName
+	} else if incident.NodeID != nil && *incident.NodeID != "" {
+		nodeName = *incident.NodeID
+	}
+	status := incident.Status
+	if status == "suppressed" && incident.SuppressUntil != nil {
+		status = fmt.Sprintf("suppressed until %s", time.Unix(*incident.SuppressUntil, 0).Format("15:04"))
+	}
+	return fmt.Sprintf(
+		"%s #%d <b>%s</b> [%s/%s]\n%s (%d event(s), last %s)",
+		severityIcon(incident.Severity),
+		incident.ID,
+		escapeHTML(nodeName),
+		escapeHTML(incident.Severity),
+		escapeHTML(status),
+		escapeHTML(incident.Title),
+		incident.EventCount,
+		relativeDuration(time.Since(time.Unix(incident.LastSeen, 0))),
+	)
+}
+
+func relativeDuration(duration time.Duration) string {
+	if duration < time.Minute {
+		return fmt.Sprintf("%.0fs ago", duration.Seconds())
+	}
+	if duration < time.Hour {
+		return fmt.Sprintf("%.0fm ago", duration.Minutes())
+	}
+	if duration < 24*time.Hour {
+		return fmt.Sprintf("%.0fh ago", duration.Hours())
+	}
+	return fmt.Sprintf("%.0fd ago", duration.Hours()/24)
 }
 
 func formatPercentPtr(value *float64) string {

@@ -140,6 +140,7 @@ const StarApp = (() => {
     const filteredNodes = sortNodes(nodes, scores).filter(matchesSearch)
 
     renderSummary(nodes, state.dashboard.status || {}, state.dashboard.links || [], state.dashboard.hot_sources || [], scores)
+    renderIncidents(state.dashboard.incidents || [])
     renderEvents(state.dashboard.events || [])
     renderFleetRadar(state.dashboard.fleet_analytics || {})
     renderGroundTruth(state.dashboard.ground_truth || null)
@@ -200,6 +201,24 @@ const StarApp = (() => {
           <div class="event-body">${escapeHtml(event.body || 'No event details available.')}</div>
         </article>
       `)
+    })
+  }
+
+  function renderIncidents(incidents) {
+    const root = document.getElementById('incidents-list')
+    root.innerHTML = ''
+
+    if (!incidents.length) {
+      root.innerHTML = emptyListItem('No active incidents. Recovered issues remain available through node detail and /api/incidents?status=recent.')
+      return
+    }
+
+    incidents.forEach(incident => {
+      root.insertAdjacentHTML('beforeend', incidentMarkup(incident))
+      const article = root.lastElementChild
+      if (article && incident.node_id) {
+        article.addEventListener('click', () => selectNode(incident.node_id))
+      }
     })
   }
 
@@ -405,6 +424,7 @@ const StarApp = (() => {
       events,
       links,
       metrics,
+      incidents,
       live_connections: liveConnections,
       recent_connections: recentConnections,
       analytics,
@@ -480,6 +500,8 @@ const StarApp = (() => {
       `${escapeHtml(event.body || 'No event details available.')}`,
       `${escapeHtml(event.type || 'event')} • ${relativeTime(event.created_at)}`
     ), 'No node-specific events recorded.')
+
+    renderCompactList('detail-incidents', incidents || [], incident => incidentMarkup(incident), 'No incidents recorded for this node.')
 
     renderCompactList('detail-history', (history || []).slice(0, 10), item => stackItem(
       `${escapeHtml(item.old_status || 'unknown')} → ${escapeHtml(item.new_status || 'unknown')}`,
@@ -663,6 +685,28 @@ const StarApp = (() => {
     `
   }
 
+  function incidentMarkup(incident) {
+    const node = incident.node_name || incident.node_id || 'system'
+    const status = incident.status || 'open'
+    const statusDetail = status === 'suppressed' && incident.suppress_until
+      ? `suppressed until ${absoluteDateTime(incident.suppress_until)}`
+      : status
+    return `
+      <article class="stack-item incident-card ${escapeHtml(incident.severity || 'info')} ${escapeHtml(status)}">
+        <div class="stack-topline">
+          <span>#${incident.id} • ${escapeHtml(node)} • ${escapeHtml(incident.type || 'incident')}</span>
+          <span class="incident-state ${escapeHtml(status)}">${escapeHtml(statusDetail)}</span>
+        </div>
+        <div class="stack-title">${escapeHtml(incident.title || 'Untitled incident')}</div>
+        <div class="stack-body">${escapeHtml(incident.body || 'No incident details available.')}</div>
+        <div class="stack-topline">
+          <span>${escapeHtml(incident.severity || 'info')} • ${incident.event_count || 1} event(s)</span>
+          <span>${relativeTime(incident.last_seen)} • first ${relativeTime(incident.first_seen)}</span>
+        </div>
+      </article>
+    `
+  }
+
   function emptyListItem(message) {
     return `<article class="stack-item"><div class="stack-body">${escapeHtml(message)}</div></article>`
   }
@@ -754,6 +798,11 @@ const StarApp = (() => {
   function absoluteTime(timestamp) {
     if (!timestamp) return '--'
     return new Date(timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function absoluteDateTime(timestamp) {
+    if (!timestamp) return '--'
+    return new Date(timestamp * 1000).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   function describeLocationSource(source) {

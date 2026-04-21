@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	minDataPoints       = 100
-	anomalyDedupSeconds = 6 * 3600
+	minDataPoints = 100
 )
 
 type anomalyPolicy struct {
@@ -31,6 +30,10 @@ type AnomalyAlert struct {
 	Title     string
 	Message   string
 	RiskLevel string
+}
+
+func (a AnomalyAlert) Fingerprint() string {
+	return db.BuildIncidentFingerprint(a.NodeID, "metric_anomaly", a.Title)
 }
 
 func (a AnomalyAlert) String() string {
@@ -62,17 +65,34 @@ func RunAnomalyDetection(database *db.DB) []AnomalyAlert {
 		nodeName := database.GetNodeName(nodeID)
 		detail := BuildDetailAnalytics(points, 24)
 		nodeAlerts := buildNodeAlerts(nodeID, nodeName, detail)
+		activeFingerprints := make(map[string]bool, len(nodeAlerts))
 		for _, alert := range nodeAlerts {
-			hasRecent, err := database.HasRecentEvent(nodeID, "anomaly", alert.Title, anomalyDedupSeconds)
+			activeFingerprints[alert.Fingerprint()] = true
+			change, err := database.UpsertIncident(nodeID, "metric_anomaly", alert.Severity, alert.Title, alert.Message, alert.Fingerprint(), "")
 			if err != nil {
-				log.Printf("[analytics] recent event lookup failed for %s: %v", nodeID, err)
+				log.Printf("[analytics] incident upsert failed for %s: %v", nodeID, err)
 				continue
 			}
-			if hasRecent {
+			if change.Created {
+				_ = database.RecordEvent(nodeID, "anomaly", alert.Severity, alert.Title, alert.Message, "")
+			}
+			if change.ShouldNotify {
+				alerts = append(alerts, alert)
+			}
+		}
+
+		activeIncidents, err := database.GetNodeActiveIncidents(nodeID, 100)
+		if err != nil {
+			log.Printf("[analytics] active incident lookup failed for %s: %v", nodeID, err)
+			continue
+		}
+		for _, incident := range activeIncidents {
+			if incident.Type != "metric_anomaly" || activeFingerprints[incident.Fingerprint] {
 				continue
 			}
-			_ = database.RecordEvent(nodeID, "anomaly", alert.Severity, alert.Title, alert.Message, "")
-			alerts = append(alerts, alert)
+			if _, err := database.RecoverIncident(incident.ID); err != nil {
+				log.Printf("[analytics] incident recovery failed for %s: %v", nodeID, err)
+			}
 		}
 	}
 
