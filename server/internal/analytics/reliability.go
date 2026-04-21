@@ -10,19 +10,21 @@ import (
 )
 
 type ReliabilityNode struct {
-	NodeID              string   `json:"node_id"`
-	NodeName            string   `json:"node_name"`
-	Status              string   `json:"status"`
-	OperationalScore    float64  `json:"operational_score"`
-	AvailabilityPercent float64  `json:"availability_percent"`
-	DataCoveragePercent float64  `json:"data_coverage_percent"`
-	LastSeenAgeSeconds  int64    `json:"last_seen_age_seconds"`
-	IncidentCount       int      `json:"incident_count"`
-	CriticalEventCount  int      `json:"critical_event_count"`
-	WarningEventCount   int      `json:"warning_event_count"`
-	DataQuality         string   `json:"data_quality"`
-	Recommendation      string   `json:"recommendation"`
-	Signals             []string `json:"signals"`
+	NodeID               string   `json:"node_id"`
+	NodeName             string   `json:"node_name"`
+	Status               string   `json:"status"`
+	OperationalScore     float64  `json:"operational_score"`
+	AvailabilityPercent  float64  `json:"availability_percent"`
+	DataCoveragePercent  float64  `json:"data_coverage_percent"`
+	LastSeenAgeSeconds   int64    `json:"last_seen_age_seconds"`
+	IncidentCount        int      `json:"incident_count"`
+	SignalEventCount     int      `json:"signal_event_count"`
+	ExperimentEventCount int      `json:"experiment_event_count"`
+	CriticalEventCount   int      `json:"critical_event_count"`
+	WarningEventCount    int      `json:"warning_event_count"`
+	DataQuality          string   `json:"data_quality"`
+	Recommendation       string   `json:"recommendation"`
+	Signals              []string `json:"signals"`
 }
 
 type ReliabilityAnalytics struct {
@@ -31,6 +33,8 @@ type ReliabilityAnalytics struct {
 	FleetAvailability     float64           `json:"fleet_availability_percent"`
 	FleetDataCoverage     float64           `json:"fleet_data_coverage_percent"`
 	IncidentCount         int               `json:"incident_count"`
+	SignalEventCount      int               `json:"signal_event_count"`
+	ExperimentEventCount  int               `json:"experiment_event_count"`
 	CriticalEventCount    int               `json:"critical_event_count"`
 	WarningEventCount     int               `json:"warning_event_count"`
 	Summary               string            `json:"summary"`
@@ -38,12 +42,14 @@ type ReliabilityAnalytics struct {
 }
 
 type reliabilityEventCounts struct {
-	incidents int
-	critical  int
-	warning   int
+	incidents  int
+	signals    int
+	experiment int
+	critical   int
+	warning    int
 }
 
-func BuildReliabilityAnalytics(windowHours int, now int64, samples []FleetNodeSample, events []db.Event) ReliabilityAnalytics {
+func BuildReliabilityAnalytics(windowHours int, now int64, samples []FleetNodeSample, events []db.Event, labels []ExperimentLabel) ReliabilityAnalytics {
 	if now <= 0 {
 		now = 0
 	}
@@ -54,12 +60,12 @@ func BuildReliabilityAnalytics(windowHours int, now int64, samples []FleetNodeSa
 
 	eventsByNode := map[string]reliabilityEventCounts{}
 	for _, event := range events {
-		countFleetEvent(&report, event)
+		countFleetEvent(&report, event, labels)
 		if event.NodeID == nil || *event.NodeID == "" {
 			continue
 		}
 		counts := eventsByNode[*event.NodeID]
-		countEvent(&counts, event)
+		countEvent(&counts, event, labels)
 		eventsByNode[*event.NodeID] = counts
 	}
 
@@ -110,24 +116,26 @@ func buildReliabilityNode(sample FleetNodeSample, counts reliabilityEventCounts,
 
 	availability := estimateAvailability(sample)
 	coverage := clampPercent(sample.Analytics.CoveragePercent)
-	eventHealth := math.Max(0, 100-float64(counts.critical)*18-float64(counts.warning)*8)
+	eventHealth := math.Max(0, 100-float64(counts.critical)*18-float64(counts.warning)*8-float64(counts.signals)*2)
 	stability := estimateStability(sample)
 	stalePenalty := stalePenalty(lastSeenAge)
 
 	score := 0.35*availability + 0.25*coverage + 0.25*stability + 0.15*eventHealth - stalePenalty
 	node := ReliabilityNode{
-		NodeID:              sample.Node.ID,
-		NodeName:            sample.Node.Name,
-		Status:              sample.Node.Status,
-		OperationalScore:    clampPercent(score),
-		AvailabilityPercent: availability,
-		DataCoveragePercent: coverage,
-		LastSeenAgeSeconds:  lastSeenAge,
-		IncidentCount:       counts.incidents,
-		CriticalEventCount:  counts.critical,
-		WarningEventCount:   counts.warning,
-		DataQuality:         classifyDataQuality(coverage, lastSeenAge),
-		Signals:             buildReliabilitySignals(sample, counts, coverage, lastSeenAge),
+		NodeID:               sample.Node.ID,
+		NodeName:             sample.Node.Name,
+		Status:               sample.Node.Status,
+		OperationalScore:     clampPercent(score),
+		AvailabilityPercent:  availability,
+		DataCoveragePercent:  coverage,
+		LastSeenAgeSeconds:   lastSeenAge,
+		IncidentCount:        counts.incidents,
+		SignalEventCount:     counts.signals,
+		ExperimentEventCount: counts.experiment,
+		CriticalEventCount:   counts.critical,
+		WarningEventCount:    counts.warning,
+		DataQuality:          classifyDataQuality(coverage, lastSeenAge),
+		Signals:              buildReliabilitySignals(sample, counts, coverage, lastSeenAge),
 	}
 	node.Recommendation = reliabilityRecommendation(sample, node)
 	return node
@@ -188,10 +196,16 @@ func classifyDataQuality(coverage float64, lastSeenAge int64) string {
 func buildReliabilitySignals(sample FleetNodeSample, counts reliabilityEventCounts, coverage float64, lastSeenAge int64) []string {
 	signals := []string{}
 	if counts.critical > 0 {
-		signals = append(signals, fmt.Sprintf("%d critical event(s) in window", counts.critical))
+		signals = append(signals, fmt.Sprintf("%d critical operational event(s) in window", counts.critical))
 	}
 	if counts.warning > 0 {
-		signals = append(signals, fmt.Sprintf("%d warning event(s) in window", counts.warning))
+		signals = append(signals, fmt.Sprintf("%d warning operational event(s) in window", counts.warning))
+	}
+	if counts.signals > 0 {
+		signals = append(signals, fmt.Sprintf("%d statistical signal(s) outside experiments", counts.signals))
+	}
+	if counts.experiment > 0 {
+		signals = append(signals, fmt.Sprintf("%d signal(s) inside labelled experiments", counts.experiment))
 	}
 	if coverage < 80 {
 		signals = append(signals, fmt.Sprintf("%.0f%% metric coverage", coverage))
@@ -213,10 +227,13 @@ func reliabilityRecommendation(sample FleetNodeSample, node ReliabilityNode) str
 		return "Restore agent connectivity before interpreting performance analytics."
 	}
 	if node.CriticalEventCount > 0 {
-		return "Inspect the latest critical events and correlate them with CPU, memory, and link history."
+		return "Inspect critical status events and correlate them with CPU, memory, and link history."
 	}
 	if node.DataQuality == "weak" {
 		return "Improve sample coverage; check agent uptime, report interval, and server reachability."
+	}
+	if node.SignalEventCount > 0 {
+		return "Review statistical signals; confirm whether they are real incidents or normal workload changes."
 	}
 	if sample.Analytics.RiskLevel == "critical" || sample.Analytics.RiskLevel == "elevated" {
 		return "Watch this node and compare current pressure against its 24h baseline."
@@ -238,33 +255,77 @@ func buildReliabilitySummary(report ReliabilityAnalytics) string {
 		}
 	}
 	return fmt.Sprintf(
-		"%dh reliability ledger: %.0f/100 fleet score, %.0f%% availability proxy, %.0f%% data coverage, %d incident(s), %d weak telemetry node(s)",
+		"%dh reliability ledger: %.0f/100 fleet score, %.0f%% availability proxy, %.0f%% data coverage, %d operational incident(s), %d statistical signal(s), %d experiment signal(s), %d weak telemetry node(s)",
 		report.WindowHours,
 		report.FleetOperationalScore,
 		report.FleetAvailability,
 		report.FleetDataCoverage,
 		report.IncidentCount,
+		report.SignalEventCount,
+		report.ExperimentEventCount,
 		weak,
 	)
 }
 
-func countFleetEvent(report *ReliabilityAnalytics, event db.Event) {
+func countFleetEvent(report *ReliabilityAnalytics, event db.Event, labels []ExperimentLabel) {
 	counts := reliabilityEventCounts{}
-	countEvent(&counts, event)
+	countEvent(&counts, event, labels)
 	report.IncidentCount += counts.incidents
+	report.SignalEventCount += counts.signals
+	report.ExperimentEventCount += counts.experiment
 	report.CriticalEventCount += counts.critical
 	report.WarningEventCount += counts.warning
 }
 
-func countEvent(counts *reliabilityEventCounts, event db.Event) {
-	switch event.Severity {
-	case "critical":
+func countEvent(counts *reliabilityEventCounts, event db.Event, labels []ExperimentLabel) {
+	if isInsideLabelledExperiment(event, labels) {
+		if isReliabilitySignal(event) {
+			counts.experiment++
+		}
+		return
+	}
+
+	if event.Type == "anomaly" {
+		if event.Severity == "critical" || event.Severity == "warning" {
+			counts.signals++
+		}
+		return
+	}
+
+	if event.Type != "status_change" {
+		return
+	}
+	if event.Severity == "critical" {
 		counts.incidents++
 		counts.critical++
-	case "warning":
+		return
+	}
+	if event.Severity == "warning" {
 		counts.incidents++
 		counts.warning++
 	}
+}
+
+func isReliabilitySignal(event db.Event) bool {
+	if event.Type == "anomaly" || event.Type == "status_change" {
+		return event.Severity == "critical" || event.Severity == "warning"
+	}
+	return false
+}
+
+func isInsideLabelledExperiment(event db.Event, labels []ExperimentLabel) bool {
+	if event.NodeID == nil || len(labels) == 0 {
+		return false
+	}
+	for _, label := range labels {
+		if label.NodeID != *event.NodeID {
+			continue
+		}
+		if event.CreatedAt >= label.StartedAt && event.CreatedAt <= label.EndedAt+300 {
+			return true
+		}
+	}
+	return false
 }
 
 func stalePenalty(lastSeenAge int64) float64 {

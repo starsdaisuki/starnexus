@@ -69,21 +69,25 @@ type reliabilityAnalytics struct {
 	FleetAvailability     float64           `json:"fleet_availability_percent"`
 	FleetDataCoverage     float64           `json:"fleet_data_coverage_percent"`
 	IncidentCount         int               `json:"incident_count"`
+	SignalEventCount      int               `json:"signal_event_count"`
+	ExperimentEventCount  int               `json:"experiment_event_count"`
 	Summary               string            `json:"summary"`
 	Nodes                 []reliabilityNode `json:"nodes"`
 }
 
 type reliabilityNode struct {
-	NodeID              string   `json:"node_id"`
-	NodeName            string   `json:"node_name"`
-	Status              string   `json:"status"`
-	OperationalScore    float64  `json:"operational_score"`
-	AvailabilityPercent float64  `json:"availability_percent"`
-	DataCoveragePercent float64  `json:"data_coverage_percent"`
-	IncidentCount       int      `json:"incident_count"`
-	DataQuality         string   `json:"data_quality"`
-	Recommendation      string   `json:"recommendation"`
-	Signals             []string `json:"signals"`
+	NodeID               string   `json:"node_id"`
+	NodeName             string   `json:"node_name"`
+	Status               string   `json:"status"`
+	OperationalScore     float64  `json:"operational_score"`
+	AvailabilityPercent  float64  `json:"availability_percent"`
+	DataCoveragePercent  float64  `json:"data_coverage_percent"`
+	IncidentCount        int      `json:"incident_count"`
+	SignalEventCount     int      `json:"signal_event_count"`
+	ExperimentEventCount int      `json:"experiment_event_count"`
+	DataQuality          string   `json:"data_quality"`
+	Recommendation       string   `json:"recommendation"`
+	Signals              []string `json:"signals"`
 }
 
 type groundTruthAnalytics struct {
@@ -344,10 +348,11 @@ func (m *Monitor) cmdAnalytics() string {
 		dashboard.Status.Offline,
 	))
 	sb.WriteString(fmt.Sprintf(
-		"Reliability: %.0f/100 | coverage %.0f%% | incidents %d\n",
+		"Reliability: %.0f/100 | coverage %.0f%% | incidents %d | signals %d\n",
 		dashboard.Reliability.FleetOperationalScore,
 		dashboard.Reliability.FleetDataCoverage,
 		dashboard.Reliability.IncidentCount,
+		dashboard.Reliability.SignalEventCount,
 	))
 	if dashboard.GroundTruth != nil && dashboard.GroundTruth.ExperimentCount > 0 {
 		sb.WriteString(fmt.Sprintf(
@@ -368,12 +373,13 @@ func (m *Monitor) cmdAnalytics() string {
 		sb.WriteString("\n<b>Top Watch</b>\n")
 		for _, node := range dashboard.Reliability.Nodes[:minInt(3, len(dashboard.Reliability.Nodes))] {
 			sb.WriteString(fmt.Sprintf(
-				"%s <b>%s</b>: %.0f/100, %s, %d incident(s)\n",
+				"%s <b>%s</b>: %.0f/100, %s, %d incident(s), %d signal(s)\n",
 				statusIcon(node.Status),
 				escapeHTML(node.NodeName),
 				node.OperationalScore,
 				escapeHTML(node.DataQuality),
 				node.IncidentCount,
+				node.SignalEventCount,
 			))
 			if node.Recommendation != "" {
 				sb.WriteString(fmt.Sprintf("  %s\n", escapeHTML(node.Recommendation)))

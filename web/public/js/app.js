@@ -286,6 +286,7 @@ const StarApp = (() => {
       document.getElementById('reliability-score').textContent = '--'
       document.getElementById('reliability-coverage').textContent = '--'
       document.getElementById('reliability-incidents').textContent = '--'
+      document.getElementById('reliability-signals').textContent = '--'
       summary.textContent = 'No reliability analytics available yet.'
       root.innerHTML = emptyListItem('Collect more telemetry to build the reliability ledger.')
       return
@@ -294,6 +295,7 @@ const StarApp = (() => {
     document.getElementById('reliability-score').textContent = `${Number(reliability.fleet_operational_score || 0).toFixed(0)}/100`
     document.getElementById('reliability-coverage').textContent = `${Number(reliability.fleet_data_coverage_percent || 0).toFixed(0)}%`
     document.getElementById('reliability-incidents').textContent = `${reliability.incident_count || 0}`
+    document.getElementById('reliability-signals').textContent = `${reliability.signal_event_count || 0}`
     summary.textContent = reliability.summary || '24h reliability ledger is available.'
 
     reliability.nodes.slice(0, 6).forEach(node => {
@@ -309,7 +311,7 @@ const StarApp = (() => {
         <div class="stack-body">${escapeHtml(node.recommendation || 'No recommendation available.')}</div>
         <div class="stack-topline">
           <span>${Number(node.availability_percent || 0).toFixed(0)}% availability proxy • ${Number(node.data_coverage_percent || 0).toFixed(0)}% coverage</span>
-          <span>${node.incident_count || 0} incident(s)</span>
+          <span>${node.incident_count || 0} incident(s) • ${node.signal_event_count || 0} signal(s)</span>
         </div>
         <div class="stack-footnote">${signals || 'no signals'}</div>
       `

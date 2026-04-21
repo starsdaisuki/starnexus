@@ -38,9 +38,9 @@ func TestBuildReliabilityAnalyticsRanksWeakNodeFirst(t *testing.T) {
 			Analytics: DetailAnalytics{CoveragePercent: 35, RiskLevel: "critical"},
 		},
 	}, []db.Event{
-		{NodeID: &nodeID, Severity: "critical"},
-		{NodeID: &nodeID, Severity: "warning"},
-	})
+		{NodeID: &nodeID, Type: "status_change", Severity: "critical"},
+		{NodeID: &nodeID, Type: "status_change", Severity: "warning"},
+	}, nil)
 
 	if len(report.Nodes) != 2 {
 		t.Fatalf("expected 2 nodes, got %d", len(report.Nodes))
@@ -60,11 +60,38 @@ func TestBuildReliabilityAnalyticsRanksWeakNodeFirst(t *testing.T) {
 }
 
 func TestBuildReliabilityAnalyticsHandlesEmptyInput(t *testing.T) {
-	report := BuildReliabilityAnalytics(24, 0, nil, nil)
+	report := BuildReliabilityAnalytics(24, 0, nil, nil, nil)
 	if report.Summary == "" {
 		t.Fatal("expected summary")
 	}
 	if len(report.Nodes) != 0 {
 		t.Fatalf("expected no nodes, got %d", len(report.Nodes))
+	}
+}
+
+func TestBuildReliabilityAnalyticsSeparatesAnomalyAndExperimentSignals(t *testing.T) {
+	now := int64(1_700_000_000)
+	lastSeen := now - 30
+	nodeID := "node-a"
+	report := BuildReliabilityAnalytics(24, now, []FleetNodeSample{
+		{
+			Node:      db.Node{ID: nodeID, Name: "Node A", Status: "online", LastSeen: &lastSeen},
+			Analytics: DetailAnalytics{CoveragePercent: 100, RiskLevel: "stable"},
+		},
+	}, []db.Event{
+		{NodeID: &nodeID, Type: "anomaly", Severity: "critical", CreatedAt: now - 600},
+		{NodeID: &nodeID, Type: "anomaly", Severity: "warning", CreatedAt: now - 100},
+	}, []ExperimentLabel{
+		{NodeID: nodeID, StartedAt: now - 120, EndedAt: now - 60},
+	})
+
+	if report.IncidentCount != 0 {
+		t.Fatalf("anomaly events should not be counted as operational incidents, got %d", report.IncidentCount)
+	}
+	if report.SignalEventCount != 1 {
+		t.Fatalf("expected one non-experiment statistical signal, got %d", report.SignalEventCount)
+	}
+	if report.ExperimentEventCount != 1 {
+		t.Fatalf("expected one experiment signal, got %d", report.ExperimentEventCount)
 	}
 }

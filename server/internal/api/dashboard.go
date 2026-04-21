@@ -96,6 +96,7 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	from := now.Add(-24 * time.Hour).Unix()
+	labels := s.loadExperimentLabels(from)
 	windowEvents, err := s.db.GetEventsSince(from, 1000)
 	if err != nil {
 		log.Printf("GetEventsSince for reliability analytics error: %v", err)
@@ -117,8 +118,8 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 			Analytics: analytics.BuildDetailAnalytics(points, 24),
 		})
 	}
-	groundTruth := s.buildDashboardGroundTruth(from, pointsByNode)
-	reliability := analytics.BuildReliabilityAnalytics(24, now.Unix(), fleetSamples, windowEvents)
+	groundTruth := s.buildDashboardGroundTruth(from, labels, pointsByNode)
+	reliability := analytics.BuildReliabilityAnalytics(24, now.Unix(), fleetSamples, windowEvents, labels)
 
 	writeJSON(w, http.StatusOK, dashboardResponse{
 		GeneratedAt:    now.Unix(),
@@ -134,7 +135,7 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) buildDashboardGroundTruth(from int64, pointsByNode map[string][]db.MetricPoint) *analytics.GroundTruthEvaluation {
+func (s *Server) loadExperimentLabels(from int64) []analytics.ExperimentLabel {
 	if s.experimentLabelsPath == "" {
 		return nil
 	}
@@ -143,7 +144,10 @@ func (s *Server) buildDashboardGroundTruth(from int64, pointsByNode map[string][
 		log.Printf("LoadExperimentLabelsJSONL error: %v", err)
 		return nil
 	}
-	labels = filterExperimentLabelsSince(labels, from)
+	return filterExperimentLabelsSince(labels, from)
+}
+
+func (s *Server) buildDashboardGroundTruth(from int64, labels []analytics.ExperimentLabel, pointsByNode map[string][]db.MetricPoint) *analytics.GroundTruthEvaluation {
 	if len(labels) == 0 {
 		return nil
 	}

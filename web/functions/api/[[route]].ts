@@ -203,33 +203,46 @@ function buildFleetAnalytics(nodes: any[], scores: any[]) {
 
 function buildReliabilityAnalytics(nodes: any[], scores: any[], events: any[]) {
   const scoreMap = new Map((scores || []).map((score: any) => [score.node_id, score]))
-  const eventsByNode = new Map<string, { incidents: number; critical: number; warning: number }>()
+  const eventsByNode = new Map<string, { incidents: number; signals: number; critical: number; warning: number }>()
   let incidentCount = 0
+  let signalEventCount = 0
   let criticalEventCount = 0
   let warningEventCount = 0
 
   for (const event of events || []) {
     if (event.severity !== 'critical' && event.severity !== 'warning') continue
-    incidentCount++
-    if (event.severity === 'critical') criticalEventCount++
-    if (event.severity === 'warning') warningEventCount++
+    const isOperational = event.type === 'status_change'
+    const isSignal = event.type === 'anomaly'
+    if (!isOperational && !isSignal) continue
+
+    if (isOperational) {
+      incidentCount++
+      if (event.severity === 'critical') criticalEventCount++
+      if (event.severity === 'warning') warningEventCount++
+    } else {
+      signalEventCount++
+    }
 
     const nodeId = event.node_id
     if (!nodeId) continue
-    const counts = eventsByNode.get(nodeId) || { incidents: 0, critical: 0, warning: 0 }
-    counts.incidents++
-    if (event.severity === 'critical') counts.critical++
-    if (event.severity === 'warning') counts.warning++
+    const counts = eventsByNode.get(nodeId) || { incidents: 0, signals: 0, critical: 0, warning: 0 }
+    if (isOperational) {
+      counts.incidents++
+      if (event.severity === 'critical') counts.critical++
+      if (event.severity === 'warning') counts.warning++
+    } else {
+      counts.signals++
+    }
     eventsByNode.set(nodeId, counts)
   }
 
   const reliabilityNodes = (nodes || []).map((node: any) => {
     const score = scoreMap.get(node.id)
-    const counts = eventsByNode.get(node.id) || { incidents: 0, critical: 0, warning: 0 }
+    const counts = eventsByNode.get(node.id) || { incidents: 0, signals: 0, critical: 0, warning: 0 }
     const availability = Number(score?.availability ?? (node.status === 'online' ? 100 : node.status === 'degraded' ? 72 : 0))
     const coverage = 100
     const stability = Number(score?.stability ?? 92)
-    const eventHealth = Math.max(0, 100 - counts.critical * 18 - counts.warning * 8)
+    const eventHealth = Math.max(0, 100 - counts.critical * 18 - counts.warning * 8 - counts.signals * 2)
     const operationalScore = Math.max(0, Math.min(100, availability * 0.35 + coverage * 0.25 + stability * 0.25 + eventHealth * 0.15))
     const dataQuality = coverage >= 80 ? 'good' : coverage >= 50 ? 'partial' : 'weak'
 
@@ -242,11 +255,13 @@ function buildReliabilityAnalytics(nodes: any[], scores: any[], events: any[]) {
       data_coverage_percent: coverage,
       last_seen_age_seconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(node.last_seen || 0)),
       incident_count: counts.incidents,
+      signal_event_count: counts.signals,
+      experiment_event_count: 0,
       critical_event_count: counts.critical,
       warning_event_count: counts.warning,
       data_quality: dataQuality,
-      recommendation: counts.critical > 0 ? 'Inspect recent critical events in the demo dataset.' : 'No immediate action in the demo dataset.',
-      signals: counts.incidents > 0 ? [`${counts.incidents} incident(s) in window`] : ['healthy demo telemetry'],
+      recommendation: counts.critical > 0 ? 'Inspect recent critical events in the demo dataset.' : counts.signals > 0 ? 'Review statistical signals in the demo dataset.' : 'No immediate action in the demo dataset.',
+      signals: counts.incidents > 0 || counts.signals > 0 ? [`${counts.incidents} incident(s)`, `${counts.signals} signal(s)`] : ['healthy demo telemetry'],
     }
   }).sort((a: any, b: any) => a.operational_score - b.operational_score)
 
@@ -260,9 +275,11 @@ function buildReliabilityAnalytics(nodes: any[], scores: any[], events: any[]) {
     fleet_availability_percent: avg('availability_percent'),
     fleet_data_coverage_percent: avg('data_coverage_percent'),
     incident_count: incidentCount,
+    signal_event_count: signalEventCount,
+    experiment_event_count: 0,
     critical_event_count: criticalEventCount,
     warning_event_count: warningEventCount,
-    summary: `24h demo reliability ledger: ${avg('operational_score').toFixed(0)}/100 fleet score across ${reliabilityNodes.length} nodes.`,
+    summary: `24h demo reliability ledger: ${avg('operational_score').toFixed(0)}/100 fleet score across ${reliabilityNodes.length} nodes, ${incidentCount} operational incident(s), ${signalEventCount} statistical signal(s).`,
     nodes: reliabilityNodes,
   }
 }
