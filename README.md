@@ -163,7 +163,7 @@ Run `make analyze` to export `nodes.csv`, `metrics.csv`, `events.csv`, `connecti
 
 CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file.
 
-For the current project status, recent upgrade summary, level assessment, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+For the current project status, recent upgrade summary, level assessment, method, results, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md), [`docs/METHOD.md`](docs/METHOD.md), [`docs/RESULTS.md`](docs/RESULTS.md), and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## License
 
