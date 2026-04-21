@@ -38,12 +38,12 @@ func Detect() (*GeoResult, error) {
 	defer resp.Body.Close()
 
 	var result struct {
-		Status    string  `json:"status"`
-		Lat       float64 `json:"lat"`
-		Lon       float64 `json:"lon"`
-		Query     string  `json:"query"`
-		City      string  `json:"city"`
-		Country   string  `json:"country"`
+		Status  string  `json:"status"`
+		Lat     float64 `json:"lat"`
+		Lon     float64 `json:"lon"`
+		Query   string  `json:"query"`
+		City    string  `json:"city"`
+		Country string  `json:"country"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("geoip decode: %w", err)

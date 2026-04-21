@@ -40,8 +40,8 @@ type ConnCollector struct {
 	// Per-TCP-connection: last known bytes. key = "srcIP:srcPort-localPort"
 	prevConnBytes map[string]uint64
 	// Per-IP monotonic total. key = "srcIP-localPort"
-	ipTotal map[string]uint64
-	ipRate  map[string]float64
+	ipTotal  map[string]uint64
+	ipRate   map[string]float64
 	prevTime time.Time
 }
 

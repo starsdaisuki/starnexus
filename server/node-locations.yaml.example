@@ -1,0 +1,15 @@
+nodes:
+  - id: "node-c"
+    latitude: 35.68
+    longitude: 139.75
+    note: "Replace with your exact rack or PoP coordinate when known."
+
+  - id: "node-a"
+    latitude: 35.6762
+    longitude: 139.6503
+    note: "Replace with your exact rack or PoP coordinate when known."
+
+  - id: "node-b"
+    latitude: 35.68
+    longitude: 139.75
+    note: "Replace with your exact rack or PoP coordinate when known."

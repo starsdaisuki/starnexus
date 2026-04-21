@@ -58,6 +58,7 @@ func (m *Monitor) checkOffline() {
 		if err := m.db.RecordStatusChange(node.ID, node.OldStatus, "offline", "No report received within threshold"); err != nil {
 			log.Printf("Failed to record status change for %s: %v", node.ID, err)
 		}
+		_ = m.db.RecordEvent(node.ID, "status_change", "critical", "Node offline", "No report received within offline threshold", "")
 		log.Printf("Node %s marked offline (was %s)", node.ID, node.OldStatus)
 	}
 }

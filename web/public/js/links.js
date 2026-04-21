@@ -1,87 +1,64 @@
-/**
- * links.js — Link rendering: latency labels, flowing animation, color by latency, tooltips
- */
-
 const StarLinks = (() => {
-  let layers = [] // each entry: { polyline, decorator, label }
   let map = null
+  let layers = []
 
   function init(leafletMap) {
     map = leafletMap
   }
 
   function render(links, nodes) {
-    // Clear old layers
-    layers.forEach(l => {
-      map.removeLayer(l.polyline)
-      if (l.label) map.removeLayer(l.label)
-    })
+    layers.forEach(layer => map.removeLayer(layer))
     layers = []
 
     links.forEach(link => {
-      const source = nodes.find(n => n.id === link.source_node_id)
-      const target = nodes.find(n => n.id === link.target_node_id)
+      const source = nodes.find(node => node.id === link.source_node_id)
+      const target = nodes.find(node => node.id === link.target_node_id)
       if (!source || !target) return
 
-      const color = getColorByLatency(link.latency_ms)
-      const isBad = link.status === 'bad'
+      let targetLng = target.longitude
+      const diff = source.longitude - targetLng
+      if (diff > 180) targetLng += 360
+      if (diff < -180) targetLng -= 360
 
-      // Fix antimeridian wrapping
-      let tgtLng = target.longitude
-      const lngDiff = source.longitude - tgtLng
-      if (lngDiff > 180) tgtLng += 360
-      else if (lngDiff < -180) tgtLng -= 360
+      const line = L.polyline(
+        [[source.latitude, source.longitude], [target.latitude, targetLng]],
+        {
+          color: colorByLink(link),
+          weight: link.status === 'bad' ? 1 : 2.2,
+          opacity: link.status === 'bad' ? 0.35 : 0.72,
+          dashArray: link.status === 'bad' ? '4, 10' : '8, 10',
+        }
+      ).addTo(map)
 
-      const latlngs = [[source.latitude, source.longitude], [target.latitude, tgtLng]]
-
-      // Main line
-      const polyline = L.polyline(latlngs, {
-        color: color,
-        weight: isBad ? 1 : 2.5,
-        opacity: isBad ? 0.4 : 0.8,
-        dashArray: isBad ? '6, 10' : '8, 12',
-        className: isBad ? '' : 'link-flow',
-      }).addTo(map)
-
-      // Tooltip on hover
-      const tooltipContent = `
-        <div class="link-tooltip">
-          <span class="label">Latency:</span> <span class="value">${formatLatency(link.latency_ms)}</span><br>
-          <span class="label">Pkt Loss:</span> <span class="value">${link.packet_loss.toFixed(1)}%</span>
-        </div>
-      `
-      polyline.bindTooltip(tooltipContent, { sticky: true })
-
-      // Latency label at midpoint
-      const midLat = (source.latitude + target.latitude) / 2
-      const midLng = (source.longitude + tgtLng) / 2
-      const labelText = formatLatency(link.latency_ms)
-
-      const label = L.marker([midLat, midLng], {
-        icon: L.divIcon({
-          className: 'link-label',
-          html: `<span class="link-label-text" style="color:${color}">${labelText}</span>`,
-          iconSize: [60, 16],
-          iconAnchor: [30, 8],
-        }),
-        interactive: false,
-      }).addTo(map)
-
-      layers.push({ polyline, label })
+      line.bindTooltip(buildTooltip(link, source, target), { sticky: true })
+      layers.push(line)
     })
   }
 
-  function formatLatency(ms) {
-    if (ms < 0) return 'N/A'
-    if (ms < 1) return '<1ms'
-    return Math.round(ms) + 'ms'
+  function buildTooltip(link, source, target) {
+    return `
+      <div>
+        <strong>${source.name}</strong> → <strong>${target.name}</strong><br>
+        <span>Latency ${formatLatency(link.latency_ms)} • Loss ${formatLoss(link.packet_loss)}</span>
+      </div>
+    `
   }
 
-  function getColorByLatency(ms) {
-    if (ms < 0) return '#ff4444'
-    if (ms < 50) return '#00ff88'
-    if (ms <= 150) return '#ffaa00'
-    return '#ff4444'
+  function colorByLink(link) {
+    if (link.status === 'bad' || link.latency_ms < 0 || link.packet_loss >= 100) return '#ff6d64'
+    if (link.status === 'degraded' || link.latency_ms > 120 || link.packet_loss > 2) return '#ffba4a'
+    return '#69e3ff'
+  }
+
+  function formatLatency(value) {
+    if (value == null || value < 0) return 'N/A'
+    if (value < 1) return '<1ms'
+    return `${Math.round(value)}ms`
+  }
+
+  function formatLoss(value) {
+    if (value == null) return '--'
+    return `${value.toFixed(1)}%`
   }
 
   return { init, render }

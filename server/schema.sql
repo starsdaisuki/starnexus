@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS nodes (
     ip_address TEXT,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
+    location_source TEXT DEFAULT 'unknown',
     status TEXT DEFAULT 'unknown',
     last_seen INTEGER,
     created_at INTEGER DEFAULT (strftime('%s', 'now'))
@@ -94,3 +95,33 @@ CREATE TABLE IF NOT EXISTS node_scores (
     composite_score REAL,
     updated_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT REFERENCES nodes(id),
+    type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT,
+    metadata TEXT,
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_node_time ON events(node_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS connection_samples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT NOT NULL REFERENCES nodes(id),
+    source_key TEXT NOT NULL,
+    source_ip TEXT NOT NULL,
+    source_country TEXT,
+    source_city TEXT,
+    protocol TEXT,
+    local_port INTEGER,
+    is_cloudflare INTEGER DEFAULT 0,
+    rate_bps REAL,
+    total_bytes INTEGER,
+    sample_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_connection_samples_node_time ON connection_samples(node_id, sample_at DESC);
+CREATE INDEX IF NOT EXISTS idx_connection_samples_time ON connection_samples(sample_at DESC);

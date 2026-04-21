@@ -7,6 +7,7 @@ A distributed VPS node health monitoring system with real-time world map visuali
 **https://starnexus-web.pages.dev** (static demo with fake data)
 
 Real monitoring dashboard accessible via SSH tunnel to the Go server.
+The repo's single frontend source of truth lives under [`web/public/`](web/public/).
 
 ## Architecture
 
@@ -39,7 +40,7 @@ Real monitoring dashboard accessible via SSH tunnel to the Go server.
 
 | Module | Directory | Language | Status |
 |--------|-----------|----------|--------|
-| `web` | [`web/`](web/) | HTML/JS + Cloudflare Pages | ✅ Live demo |
+| `web` | [`web/`](web/) | HTML/JS + Cloudflare Pages | ✅ Canonical frontend source |
 | `server` | [`server/`](server/) | Go | ✅ Deployed |
 | `agent` | [`agent/`](agent/) | Go | ✅ Deployed |
 | `bot` | [`bot/`](bot/) | Go | ✅ Deployed |
@@ -74,23 +75,26 @@ Real monitoring dashboard accessible via SSH tunnel to the Go server.
 - Multi-chat support (alerts sent to multiple Telegram users)
 
 ### Web Frontend
-- Dark world map (Leaflet + CartoDB Dark Matter)
+- Observatory dashboard with summary cards, event feed, node matrix, link diagnostics, and right-side node detail
+- Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen mode
 - Day/night terminator line (updates every 60s)
 - Animated node markers with glow effects (online/degraded/offline)
+- GeoIP-estimated node positions are visually distinguished from manual / server-overridden coordinates
+- Experiment View for labelled fault-injection detection and recovery delay
 - Inter-node link lines with latency labels
 - Live connection visualization: animated lines from client locations to nodes
   - Cloudflare CDN aggregation by /16 subnet
   - Hover tooltip with per-IP breakdown
   - Line thickness by transfer rate
-- Node popup: IP, provider, CPU/memory/disk bars, bandwidth, load, uptime
-- Status bar with online/degraded/offline counts
+- Node detail panel: trends, historical events, status history, ingress summary, and statistical highlights
 - Connection toggle button
 
 ### Analytics (automatic)
-- **Anomaly detection** (every 5 min): Z-score on CPU/memory/bandwidth over 24h rolling window
+- **Anomaly detection** (every 5 min): robust outlier + baseline-shift detection over a 24h rolling window
 - **Downsampling** (daily 03:00 UTC+8): raw → hourly (7-30d) → daily (30d+), purge old data
 - **Node scoring** (daily): availability 40% + latency 30% + stability 30%
 - **AI daily report** (09:00 UTC+8): metrics summary + Mistral AI analysis → Telegram
+- **Research export**: `make analyze` writes CSV/JSON/Markdown datasets for statistical evaluation and reporting
 
 ### Deployment
 - One-liner agent install: `curl -sSL http://<server>:8900/install.sh | bash -s -- --server ... --token ... --node-id ...`
@@ -116,6 +120,9 @@ Real monitoring dashboard accessible via SSH tunnel to the Go server.
 # Build all binaries (linux/amd64)
 make build-all
 
+# Deploy primary server to a VPS
+./scripts/deploy-server.sh <ssh-host>
+
 # Deploy agent to a new VPS (one-liner)
 curl -sSL http://<server>:8900/install.sh | bash -s -- \
   --server http://<server>:8900 \
@@ -127,6 +134,26 @@ curl -sSL http://<server>:8900/install.sh | bash -s -- \
 ssh -L 8900:localhost:8900 <server-host>
 # Then open http://localhost:8900
 ```
+
+## Node Management
+
+Manage monitored nodes from your local machine:
+
+```bash
+./scripts/manage-node.sh add         # Add a node (auto: firewall, agent, probe, panel security)
+./scripts/manage-node.sh remove      # Remove a node (auto: uninstall, clean DB, firewall, probe)
+./scripts/manage-node.sh update-ip   # Node changed IP? Update firewall + probe, keep data
+./scripts/manage-node.sh list        # Show all nodes and link status
+./scripts/manage-node.sh reconfig    # Switch to a different primary server
+```
+
+Primary server config is saved to `~/.starnexus.env` on first run — no repeated prompts.
+
+## Analysis Workflow
+
+Run `make analyze` to export `nodes.csv`, `metrics.csv`, `events.csv`, `connection_sources.csv`, `analytics.json`, and `report.md` into `analysis-output/`. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for how to interpret the proxy evaluation and extend it with controlled fault injection.
+
+CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file.
 
 ## License
 

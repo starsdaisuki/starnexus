@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/starsdaisuki/starnexus/server/internal/db"
+	"github.com/starsdaisuki/starnexus/server/internal/locations"
 )
 
 // ReportGenerator generates on-demand daily reports.
@@ -15,25 +16,29 @@ type ReportGenerator interface {
 }
 
 type Server struct {
-	db              *db.DB
-	token           string
-	webDir          string
-	agentBinaryPath string
-	geoipDBPath     string
-	reportGen       ReportGenerator
-	connStore       *ConnStore
-	mux             *http.ServeMux
+	db                   *db.DB
+	token                string
+	webDir               string
+	agentBinaryPath      string
+	geoipDBPath          string
+	experimentLabelsPath string
+	reportGen            ReportGenerator
+	connStore            *ConnStore
+	nodeLocations        *locations.Store
+	mux                  *http.ServeMux
 }
 
-func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath string) *Server {
+func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath, experimentLabelsPath string, nodeLocations *locations.Store) *Server {
 	s := &Server{
-		db:              database,
-		token:           token,
-		webDir:          webDir,
-		agentBinaryPath: agentBinaryPath,
-		geoipDBPath:     geoipDBPath,
-		connStore:       NewConnStore(),
-		mux:             http.NewServeMux(),
+		db:                   database,
+		token:                token,
+		webDir:               webDir,
+		agentBinaryPath:      agentBinaryPath,
+		geoipDBPath:          geoipDBPath,
+		experimentLabelsPath: experimentLabelsPath,
+		connStore:            NewConnStore(),
+		nodeLocations:        nodeLocations,
+		mux:                  http.NewServeMux(),
 	}
 	s.routes()
 	return s
@@ -50,12 +55,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) routes() {
 	// Public API
+	s.mux.HandleFunc("GET /api/dashboard", s.handleGetDashboard)
 	s.mux.HandleFunc("GET /api/nodes", s.handleGetNodes)
 	s.mux.HandleFunc("GET /api/nodes/{id}", s.handleGetNode)
+	s.mux.HandleFunc("GET /api/nodes/{id}/details", s.handleGetNodeDetails)
 	s.mux.HandleFunc("GET /api/links", s.handleGetLinks)
 	s.mux.HandleFunc("GET /api/status", s.handleGetStatus)
 	s.mux.HandleFunc("GET /api/history/{id}", s.handleGetHistory)
 	s.mux.HandleFunc("GET /api/scores", s.handleGetScores)
+	s.mux.HandleFunc("GET /api/events", s.handleGetEvents)
 
 	// Agent API (auth required)
 	s.mux.HandleFunc("POST /api/report", s.requireAuth(s.handleReport))
@@ -183,6 +191,9 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "node_id is required"})
 		return
 	}
+	if s.nodeLocations != nil {
+		s.nodeLocations.ApplyReport(&req)
+	}
 
 	oldStatus, err := s.db.UpsertReport(&req)
 	if err != nil {
@@ -191,19 +202,26 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Record status change if node came back online
-	if oldStatus != "" && oldStatus != "online" {
-		_ = s.db.RecordStatusChange(req.NodeID, oldStatus, "online", "Node reported in")
+	targetStatus := "online"
+	reason := "Node healthy"
+	if req.Metrics.CPUPercent > 80 || req.Metrics.MemoryPercent > 90 {
+		targetStatus = "degraded"
+		reason = "High resource usage"
 	}
 
-	// Threshold alerts
-	if req.Metrics.CPUPercent > 80 || req.Metrics.MemoryPercent > 90 {
-		newStatus := "degraded"
-		if oldStatus == "online" || oldStatus == "" {
-			_ = s.db.RecordStatusChange(req.NodeID, "online", newStatus, "High resource usage")
+	if err := s.db.SetNodeStatus(req.NodeID, targetStatus); err != nil {
+		log.Printf("SetNodeStatus error: %v", err)
+	}
+
+	if oldStatus != "" && oldStatus != targetStatus {
+		_ = s.db.RecordStatusChange(req.NodeID, oldStatus, targetStatus, reason)
+		severity := "info"
+		title := "Node recovered"
+		if targetStatus == "degraded" {
+			severity = "warning"
+			title = "Node degraded"
 		}
-		// Mark as degraded
-		s.db.SetNodeDegraded(req.NodeID)
+		_ = s.db.RecordEvent(req.NodeID, "status_change", severity, title, reason, "")
 	}
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -211,11 +229,12 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID        string  `json:"id"`
-		Name      string  `json:"name"`
-		Provider  string  `json:"provider"`
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
+		ID             string  `json:"id"`
+		Name           string  `json:"name"`
+		Provider       string  `json:"provider"`
+		Latitude       float64 `json:"latitude"`
+		Longitude      float64 `json:"longitude"`
+		LocationSource string  `json:"location_source"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -226,7 +245,24 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.CreateNode(req.ID, req.Name, req.Provider, req.Latitude, req.Longitude); err != nil {
+	if s.nodeLocations != nil {
+		overrideReq := db.ReportRequest{
+			NodeID:         req.ID,
+			Latitude:       req.Latitude,
+			Longitude:      req.Longitude,
+			LocationSource: req.LocationSource,
+		}
+		if s.nodeLocations.ApplyReport(&overrideReq) {
+			req.Latitude = overrideReq.Latitude
+			req.Longitude = overrideReq.Longitude
+			req.LocationSource = overrideReq.LocationSource
+		}
+	}
+	if req.LocationSource == "" {
+		req.LocationSource = "manual"
+	}
+
+	if err := s.db.CreateNode(req.ID, req.Name, req.Provider, req.Latitude, req.Longitude, req.LocationSource); err != nil {
 		log.Printf("CreateNode error: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return

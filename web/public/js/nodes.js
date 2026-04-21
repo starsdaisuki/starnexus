@@ -1,150 +1,100 @@
-/**
- * nodes.js — Node markers: custom circles, glow animations, detail popups
- */
-
 const StarNodes = (() => {
-  let markers = []
   let map = null
+  let markers = new Map()
+  let onSelect = null
 
-  function init(leafletMap) {
+  function init(leafletMap, handleSelect) {
     map = leafletMap
+    onSelect = handleSelect
   }
 
-  function render(nodes) {
-    // Clear old markers
-    markers.forEach(m => map.removeLayer(m))
-    markers = []
+  function render(nodes, selectedNodeId) {
+    const nextIds = new Set(nodes.map(node => node.id))
+
+    for (const [nodeId, marker] of markers.entries()) {
+      if (!nextIds.has(nodeId)) {
+        map.removeLayer(marker)
+        markers.delete(nodeId)
+      }
+    }
 
     nodes.forEach(node => {
-      const size = 14
-      const icon = L.divIcon({
-        className: '',
-        html: `<div class="node-marker ${node.status}" style="width:${size}px;height:${size}px;"></div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      })
+      const existing = markers.get(node.id)
+      if (existing) {
+        existing.setLatLng([node.latitude, node.longitude])
+        existing.setIcon(buildIcon(node, selectedNodeId))
+        existing.setTooltipContent(buildTooltip(node))
+        return
+      }
 
-      const marker = L.marker([node.latitude, node.longitude], { icon })
-        .addTo(map)
+      const marker = L.marker([node.latitude, node.longitude], {
+        icon: buildIcon(node, selectedNodeId),
+      }).addTo(map)
 
-      // hover tooltip
-      marker.bindTooltip(node.name, {
+      marker.bindTooltip(buildTooltip(node), {
         direction: 'top',
-        offset: [0, -10],
+        offset: [0, -12],
       })
 
-      // click popup
-      marker.bindPopup(buildPopupContent(node), {
-        maxWidth: 320,
-        minWidth: 260,
-        closeButton: true,
-        className: '',
+      marker.on('click', () => {
+        if (onSelect) onSelect(node.id)
       })
 
-      markers.push(marker)
+      markers.set(node.id, marker)
     })
   }
 
-  function buildPopupContent(node) {
-    const m = node.metrics || {}
-    const statusLabel = {
-      online: 'Online',
-      degraded: 'Degraded',
-      offline: 'Offline',
-      unknown: 'Unknown',
+  function buildIcon(node, selectedNodeId) {
+    const selectedClass = node.id === selectedNodeId ? ' selected' : ''
+    const locationClass = isEstimated(node) ? ' estimated' : ''
+    const size = node.id === selectedNodeId ? 18 : 14
+    return L.divIcon({
+      className: '',
+      html: `<div class="node-marker ${node.status || 'unknown'}${selectedClass}${locationClass}" style="width:${size}px;height:${size}px;"></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    })
+  }
+
+  function buildTooltip(node) {
+    const metrics = node.metrics || {}
+    return `
+      <div>
+        <strong>${escapeHtml(node.name)}</strong><br>
+        <span>${escapeHtml(node.provider || 'Unknown')}</span><br>
+        <span>${node.status || 'unknown'} • CPU ${formatPercent(metrics.cpu_percent)} • Mem ${formatPercent(metrics.memory_percent)}</span><br>
+        <span>${escapeHtml(describeLocationSource(node.location_source))}</span>
+      </div>
+    `
+  }
+
+  function isEstimated(node) {
+    return node.location_source === 'geoip' || node.location_source === 'unknown' || !node.location_source
+  }
+
+  function describeLocationSource(source) {
+    switch (source) {
+      case 'manual':
+        return 'Manual map position'
+      case 'manual_override':
+        return 'Server-enforced map position'
+      case 'geoip':
+        return 'GeoIP-estimated map position'
+      default:
+        return 'Location precision unknown'
     }
-
-    return `
-      <div class="node-popup">
-        <div class="node-popup-header">
-          <div>
-            <div class="node-popup-name">${escapeHtml(node.name)}</div>
-            <div class="node-popup-provider">${escapeHtml(node.provider || 'Unknown')}${node.ip_address ? ' &middot; ' + escapeHtml(node.ip_address) : ''}</div>
-          </div>
-          <span class="status-badge ${node.status}">${statusLabel[node.status] || 'Unknown'}</span>
-        </div>
-
-        ${buildMetricBar('CPU', m.cpu_percent)}
-        ${buildMetricBar('Memory', m.memory_percent)}
-        ${buildMetricBar('Disk', m.disk_percent)}
-
-        <hr class="node-popup-divider">
-
-        <div class="metric-text-row">
-          <span class="label">BW Up</span>
-          <span class="value">${formatBandwidth(m.bandwidth_up)}</span>
-        </div>
-        <div class="metric-text-row">
-          <span class="label">BW Down</span>
-          <span class="value">${formatBandwidth(m.bandwidth_down)}</span>
-        </div>
-        <div class="metric-text-row">
-          <span class="label">Load</span>
-          <span class="value">${m.load_avg != null ? m.load_avg.toFixed(2) : '--'}</span>
-        </div>
-        <div class="metric-text-row">
-          <span class="label">Connections</span>
-          <span class="value">${m.connections != null ? m.connections : '--'}</span>
-        </div>
-
-        <hr class="node-popup-divider">
-
-        <div class="metric-text-row">
-          <span class="label">Uptime</span>
-          <span class="value">${formatUptime(m.uptime_seconds)}</span>
-        </div>
-        <div class="metric-text-row">
-          <span class="label">Last Seen</span>
-          <span class="value">${formatRelativeTime(node.last_seen)}</span>
-        </div>
-      </div>
-    `
   }
 
-  function buildMetricBar(label, percent) {
-    if (percent == null) return ''
-    const p = Math.min(100, Math.max(0, percent))
-    const barClass = p > 80 ? 'bar-red' : p > 60 ? 'bar-yellow' : 'bar-green'
-    return `
-      <div class="metric-row">
-        <span class="metric-label">${label}</span>
-        <div class="metric-bar-wrap">
-          <div class="metric-bar ${barClass}" style="width:${p}%"></div>
-        </div>
-        <span class="metric-value">${p.toFixed(1)}%</span>
-      </div>
-    `
-  }
-
-  function formatBandwidth(kbps) {
-    if (kbps == null || kbps === 0) return '--'
-    if (kbps >= 1024) return (kbps / 1024).toFixed(1) + ' MB/s'
-    return kbps.toFixed(1) + ' KB/s'
-  }
-
-  function formatUptime(seconds) {
-    if (!seconds) return '--'
-    const days = Math.floor(seconds / 86400)
-    const hours = Math.floor((seconds % 86400) / 3600)
-    if (days > 0) return `${days}d ${hours}h`
-    const mins = Math.floor((seconds % 3600) / 60)
-    return `${hours}h ${mins}m`
-  }
-
-  function formatRelativeTime(timestamp) {
-    if (!timestamp) return '--'
-    const diff = Math.floor(Date.now() / 1000) - timestamp
-    if (diff < 60) return `${diff}s ago`
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    return `${Math.floor(diff / 86400)}d ago`
-  }
-
-  function escapeHtml(str) {
-    if (!str) return ''
+  function escapeHtml(value) {
+    if (!value) return ''
     const div = document.createElement('div')
-    div.textContent = str
+    div.textContent = value
     return div.innerHTML
+  }
+
+  function formatPercent(value) {
+    if (value == null) return '--'
+    return `${value.toFixed(1)}%`
   }
 
   return { init, render }

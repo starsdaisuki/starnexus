@@ -13,20 +13,20 @@ type ProbeTarget struct {
 }
 
 type Config struct {
-	ServerURL             string            `yaml:"server_url"`
-	APIToken              string            `yaml:"api_token"`
-	NodeID                string            `yaml:"node_id"`
-	NodeName              string            `yaml:"node_name"`
-	Provider              string            `yaml:"provider"`
-	PublicIP              string            `yaml:"public_ip"`
-	Latitude              float64           `yaml:"latitude"`
-	Longitude             float64           `yaml:"longitude"`
-	ReportIntervalSeconds int               `yaml:"report_interval_seconds"`
-	ProbeTargets          []ProbeTarget     `yaml:"probe_targets"`
-	GeoIPDBPath           string            `yaml:"geoip_db_path"`
-	ConnIntervalSeconds   int               `yaml:"connection_report_interval_seconds"`
-	PortLabels            map[int]string    `yaml:"port_labels"`
-	ProxyProcesses        []string          `yaml:"proxy_processes"`
+	ServerURL             string         `yaml:"server_url"`
+	APIToken              string         `yaml:"api_token"`
+	NodeID                string         `yaml:"node_id"`
+	NodeName              string         `yaml:"node_name"`
+	Provider              string         `yaml:"provider"`
+	PublicIP              string         `yaml:"public_ip"`
+	Latitude              float64        `yaml:"latitude"`
+	Longitude             float64        `yaml:"longitude"`
+	ReportIntervalSeconds int            `yaml:"report_interval_seconds"`
+	ProbeTargets          []ProbeTarget  `yaml:"probe_targets"`
+	GeoIPDBPath           string         `yaml:"geoip_db_path"`
+	ConnIntervalSeconds   int            `yaml:"connection_report_interval_seconds"`
+	PortLabels            map[int]string `yaml:"port_labels"`
+	ProxyProcesses        []string       `yaml:"proxy_processes"`
 }
 
 func Load(path string) (*Config, error) {

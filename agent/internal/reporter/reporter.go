@@ -15,7 +15,7 @@ import (
 
 // ConnReport is the payload for connection data.
 type ConnReport struct {
-	NodeID      string              `json:"node_id"`
+	NodeID      string               `json:"node_id"`
 	Connections []collector.ConnInfo `json:"connections"`
 }
 
@@ -44,14 +44,15 @@ const bufferCapacity = 120 // 1 hour at 30s intervals
 
 // Report is the payload sent to the server.
 type Report struct {
-	NodeID    string              `json:"node_id"`
-	Name      string              `json:"name"`
-	Provider  string              `json:"provider"`
-	PublicIP  string              `json:"public_ip,omitempty"`
-	Latitude  float64             `json:"latitude"`
-	Longitude float64             `json:"longitude"`
-	Metrics   collector.Metrics   `json:"metrics"`
-	Links     []probe.LinkResult  `json:"links,omitempty"`
+	NodeID         string             `json:"node_id"`
+	Name           string             `json:"name"`
+	Provider       string             `json:"provider"`
+	PublicIP       string             `json:"public_ip,omitempty"`
+	Latitude       float64            `json:"latitude"`
+	Longitude      float64            `json:"longitude"`
+	LocationSource string             `json:"location_source,omitempty"`
+	Metrics        collector.Metrics  `json:"metrics"`
+	Links          []probe.LinkResult `json:"links,omitempty"`
 }
 
 // Reporter handles sending reports to the server with a ring buffer for failures.

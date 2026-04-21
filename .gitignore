@@ -2,6 +2,7 @@ node_modules/
 .wrangler/
 .dev.vars
 .DS_Store
+.gocache/
 *.log
 web/public/assets/earth-at-night.png
 
@@ -21,6 +22,8 @@ bot/config.yaml
 *-config.yaml
 .geoip-cache.json
 GeoLite2-City.mmdb
+.dist/
+analysis-output/
 
 # Dev logs (private, do not push)
 docs/dev-log-*.md

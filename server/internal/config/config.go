@@ -11,6 +11,8 @@ type Config struct {
 	DBPath                  string  `yaml:"db_path"`
 	APIToken                string  `yaml:"api_token"`
 	WebDir                  string  `yaml:"web_dir"`
+	NodeLocationsPath       string  `yaml:"node_locations_path"`
+	ExperimentLabelsPath    string  `yaml:"experiment_labels_path"`
 	AgentBinaryPath         string  `yaml:"agent_binary_path"`
 	GeoIPDBPath             string  `yaml:"geoip_db_path"`
 	OfflineThresholdSeconds int     `yaml:"offline_threshold_seconds"`
@@ -29,6 +31,7 @@ func Load(path string) (*Config, error) {
 		Port:                    8900,
 		DBPath:                  "./starnexus.db",
 		WebDir:                  "./web",
+		ExperimentLabelsPath:    "./analysis-output/experiments.jsonl",
 		OfflineThresholdSeconds: 90,
 	}
 
