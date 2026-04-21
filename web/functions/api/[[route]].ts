@@ -201,6 +201,72 @@ function buildFleetAnalytics(nodes: any[], scores: any[]) {
   }
 }
 
+function buildReliabilityAnalytics(nodes: any[], scores: any[], events: any[]) {
+  const scoreMap = new Map((scores || []).map((score: any) => [score.node_id, score]))
+  const eventsByNode = new Map<string, { incidents: number; critical: number; warning: number }>()
+  let incidentCount = 0
+  let criticalEventCount = 0
+  let warningEventCount = 0
+
+  for (const event of events || []) {
+    if (event.severity !== 'critical' && event.severity !== 'warning') continue
+    incidentCount++
+    if (event.severity === 'critical') criticalEventCount++
+    if (event.severity === 'warning') warningEventCount++
+
+    const nodeId = event.node_id
+    if (!nodeId) continue
+    const counts = eventsByNode.get(nodeId) || { incidents: 0, critical: 0, warning: 0 }
+    counts.incidents++
+    if (event.severity === 'critical') counts.critical++
+    if (event.severity === 'warning') counts.warning++
+    eventsByNode.set(nodeId, counts)
+  }
+
+  const reliabilityNodes = (nodes || []).map((node: any) => {
+    const score = scoreMap.get(node.id)
+    const counts = eventsByNode.get(node.id) || { incidents: 0, critical: 0, warning: 0 }
+    const availability = Number(score?.availability ?? (node.status === 'online' ? 100 : node.status === 'degraded' ? 72 : 0))
+    const coverage = 100
+    const stability = Number(score?.stability ?? 92)
+    const eventHealth = Math.max(0, 100 - counts.critical * 18 - counts.warning * 8)
+    const operationalScore = Math.max(0, Math.min(100, availability * 0.35 + coverage * 0.25 + stability * 0.25 + eventHealth * 0.15))
+    const dataQuality = coverage >= 80 ? 'good' : coverage >= 50 ? 'partial' : 'weak'
+
+    return {
+      node_id: node.id,
+      node_name: node.name,
+      status: node.status,
+      operational_score: operationalScore,
+      availability_percent: availability,
+      data_coverage_percent: coverage,
+      last_seen_age_seconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(node.last_seen || 0)),
+      incident_count: counts.incidents,
+      critical_event_count: counts.critical,
+      warning_event_count: counts.warning,
+      data_quality: dataQuality,
+      recommendation: counts.critical > 0 ? 'Inspect recent critical events in the demo dataset.' : 'No immediate action in the demo dataset.',
+      signals: counts.incidents > 0 ? [`${counts.incidents} incident(s) in window`] : ['healthy demo telemetry'],
+    }
+  }).sort((a: any, b: any) => a.operational_score - b.operational_score)
+
+  const avg = (key: string) => reliabilityNodes.length
+    ? reliabilityNodes.reduce((sum: number, node: any) => sum + Number(node[key] || 0), 0) / reliabilityNodes.length
+    : 0
+
+  return {
+    window_hours: 24,
+    fleet_operational_score: avg('operational_score'),
+    fleet_availability_percent: avg('availability_percent'),
+    fleet_data_coverage_percent: avg('data_coverage_percent'),
+    incident_count: incidentCount,
+    critical_event_count: criticalEventCount,
+    warning_event_count: warningEventCount,
+    summary: `24h demo reliability ledger: ${avg('operational_score').toFixed(0)}/100 fleet score across ${reliabilityNodes.length} nodes.`,
+    nodes: reliabilityNodes,
+  }
+}
+
 function buildDemoGroundTruth() {
   const now = Math.floor(Date.now() / 1000)
   return {
@@ -260,6 +326,7 @@ app.get('/dashboard', async c => {
     events,
     hot_sources: hotSources,
     fleet_analytics: buildFleetAnalytics(nodes, scores),
+    reliability_analytics: buildReliabilityAnalytics(nodes, scores, events),
     ground_truth: buildDemoGroundTruth(),
   })
 })

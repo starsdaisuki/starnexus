@@ -143,6 +143,7 @@ const StarApp = (() => {
     renderEvents(state.dashboard.events || [])
     renderFleetRadar(state.dashboard.fleet_analytics || {})
     renderGroundTruth(state.dashboard.ground_truth || null)
+    renderReliability(state.dashboard.reliability_analytics || null)
     renderNodeTable(filteredNodes, scores)
     renderLinksList(state.dashboard.links || [], nodes)
     renderSources(state.dashboard.hot_sources || [])
@@ -272,6 +273,47 @@ const StarApp = (() => {
         </div>
       `
       article.addEventListener('click', () => selectNode(experiment.node_id))
+      root.appendChild(article)
+    })
+  }
+
+  function renderReliability(reliability) {
+    const root = document.getElementById('reliability-list')
+    const summary = document.getElementById('reliability-summary')
+    root.innerHTML = ''
+
+    if (!reliability || !(reliability.nodes || []).length) {
+      document.getElementById('reliability-score').textContent = '--'
+      document.getElementById('reliability-coverage').textContent = '--'
+      document.getElementById('reliability-incidents').textContent = '--'
+      summary.textContent = 'No reliability analytics available yet.'
+      root.innerHTML = emptyListItem('Collect more telemetry to build the reliability ledger.')
+      return
+    }
+
+    document.getElementById('reliability-score').textContent = `${Number(reliability.fleet_operational_score || 0).toFixed(0)}/100`
+    document.getElementById('reliability-coverage').textContent = `${Number(reliability.fleet_data_coverage_percent || 0).toFixed(0)}%`
+    document.getElementById('reliability-incidents').textContent = `${reliability.incident_count || 0}`
+    summary.textContent = reliability.summary || '24h reliability ledger is available.'
+
+    reliability.nodes.slice(0, 6).forEach(node => {
+      const signals = (node.signals || []).slice(0, 3).map(escapeHtml).join(' • ')
+      const article = document.createElement('article')
+      article.className = 'stack-item'
+      article.innerHTML = `
+        <div class="stack-topline">
+          <span>${escapeHtml(node.node_name || node.node_id || 'Unknown node')}</span>
+          <span class="quality-pill ${escapeHtml(node.data_quality || 'weak')}">${escapeHtml(node.data_quality || 'weak')}</span>
+        </div>
+        <div class="stack-title">${Number(node.operational_score || 0).toFixed(0)}/100 operational score • ${escapeHtml(node.status || 'unknown')}</div>
+        <div class="stack-body">${escapeHtml(node.recommendation || 'No recommendation available.')}</div>
+        <div class="stack-topline">
+          <span>${Number(node.availability_percent || 0).toFixed(0)}% availability proxy • ${Number(node.data_coverage_percent || 0).toFixed(0)}% coverage</span>
+          <span>${node.incident_count || 0} incident(s)</span>
+        </div>
+        <div class="stack-footnote">${signals || 'no signals'}</div>
+      `
+      article.addEventListener('click', () => selectNode(node.node_id))
       root.appendChild(article)
     })
   }

@@ -19,6 +19,7 @@ type dashboardResponse struct {
 	Events         []db.Event                       `json:"events"`
 	HotSources     []db.ConnectionSummary           `json:"hot_sources"`
 	FleetAnalytics analytics.FleetAnalytics         `json:"fleet_analytics"`
+	Reliability    analytics.ReliabilityAnalytics   `json:"reliability_analytics"`
 	GroundTruth    *analytics.GroundTruthEvaluation `json:"ground_truth,omitempty"`
 }
 
@@ -95,6 +96,12 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	from := now.Add(-24 * time.Hour).Unix()
+	windowEvents, err := s.db.GetEventsSince(from, 1000)
+	if err != nil {
+		log.Printf("GetEventsSince for reliability analytics error: %v", err)
+		windowEvents = []db.Event{}
+	}
+
 	fleetSamples := make([]analytics.FleetNodeSample, 0, len(nodes))
 	pointsByNode := make(map[string][]db.MetricPoint, len(nodes))
 	for _, node := range nodes {
@@ -111,6 +118,7 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	groundTruth := s.buildDashboardGroundTruth(from, pointsByNode)
+	reliability := analytics.BuildReliabilityAnalytics(24, now.Unix(), fleetSamples, windowEvents)
 
 	writeJSON(w, http.StatusOK, dashboardResponse{
 		GeneratedAt:    now.Unix(),
@@ -121,6 +129,7 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		Events:         events,
 		HotSources:     hotSources,
 		FleetAnalytics: analytics.BuildFleetAnalytics(24, fleetSamples),
+		Reliability:    reliability,
 		GroundTruth:    groundTruth,
 	})
 }
