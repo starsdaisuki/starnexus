@@ -62,8 +62,14 @@ explicitly out of scope:
   (availability 40%, latency 30%, stability 30%) were chosen for
   interpretability. The current evaluation dataset (n=3 nodes, ≈7 days)
   is too small for statistically defensible weight tuning or
-  cross-validation. Weight sensitivity analysis and longitudinal
-  predictive validation remain future work.
+  cross-validation. Longitudinal predictive validation remains future
+  work once ≥1 month of data on ≥5 nodes exists. As a stopgap,
+  `scripts/validate-reliability.py` runs a weight-sensitivity sweep
+  over five weight schemes (default, heavy-availability, balanced,
+  latency-focused, stability-focused) and reports Kendall-tau agreement
+  between node rankings. On the current fleet the ranking is stable
+  under every scheme tested, which is a weak but real robustness
+  claim.
 - **Event classification is a heuristic.** The category and likely-cause
   labels in `event_classifications.csv` come from a hand-written
   mapping, not a trained classifier. Treat confidence scores as ordinal

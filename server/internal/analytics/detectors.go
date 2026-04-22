@@ -344,13 +344,13 @@ type MahalanobisDetector struct {
 func NewMahalanobisDetector() *MahalanobisDetector {
 	return &MahalanobisDetector{
 		Window:     200,
-		ComponentK: 2.5,
-		CompositeK: 3.5,
+		ComponentK: 3.0,
+		CompositeK: 4.2,
 		MinCurrents: map[string]float64{
-			"cpu_percent":    30,
-			"memory_percent": 40,
-			"bandwidth_down": 256,
-			"connections":    40,
+			"cpu_percent":    40,
+			"memory_percent": 50,
+			"bandwidth_down": 512,
+			"connections":    60,
 		},
 		MinComponentHits: 1,
 		MinHold:          2,
@@ -359,7 +359,7 @@ func NewMahalanobisDetector() *MahalanobisDetector {
 
 func (d *MahalanobisDetector) Name() string { return "mahalanobis" }
 func (d *MahalanobisDetector) Description() string {
-	return "Multivariate robust composite: per-metric robust z gated at 2.5σ, L2-combined, fires when composite ≥ 3.5σ. Diagonal-covariance approximation."
+	return "Multivariate robust composite: per-metric robust z gated at 3σ, L2-combined, fires when composite ≥ 4.2σ. Diagonal-covariance approximation."
 }
 
 func (d *MahalanobisDetector) Process(nodeID string, points []db.MetricPoint) []SyntheticEvent {

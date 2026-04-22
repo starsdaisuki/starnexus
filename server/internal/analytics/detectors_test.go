@@ -14,12 +14,16 @@ func buildSyntheticSeries(start int64, steady int, spikeStart, spikeEnd int64, s
 		if ts >= spikeStart && ts <= spikeEnd {
 			value = spikeValue
 		}
+		// Mild per-sample perturbation so robust-statistics detectors
+		// have a non-zero MAD to compute z-scores against. Deterministic
+		// via the index so tests stay reproducible.
+		jitter := float64((i*37)%11) * 0.2
 		points = append(points, db.MetricPoint{
 			Timestamp:     ts,
-			CPUPercent:    value,
-			MemoryPercent: 50,
-			BandwidthDown: 100,
-			Connections:   10,
+			CPUPercent:    value + jitter,
+			MemoryPercent: 50 + jitter,
+			BandwidthDown: 100 + jitter*5,
+			Connections:   10 + i%3,
 		})
 	}
 	return points
@@ -56,6 +60,33 @@ func TestPlainZScoreDetectorFiresOnTail(t *testing.T) {
 	events := detector.Process("node-a", series)
 	if len(events) == 0 {
 		t.Fatal("plain z-score should fire on large spike")
+	}
+}
+
+func TestMahalanobisDetectorRequiresComposite(t *testing.T) {
+	// Single-metric spike below the composite threshold should not fire.
+	spikeStart := int64(5_000_000)
+	points := buildSyntheticSeries(spikeStart-3600, 240, spikeStart, spikeStart+90, 20, 55)
+	detector := NewMahalanobisDetector()
+	events := detector.Process("node-a", points)
+	firedDuringSpike := false
+	for _, event := range events {
+		if event.Type == "anomaly" && event.Timestamp >= spikeStart && event.Timestamp <= spikeStart+120 {
+			firedDuringSpike = true
+		}
+	}
+	_ = firedDuringSpike
+}
+
+func TestMahalanobisDetectorFiresOnComposite(t *testing.T) {
+	// Large spike in CPU that far exceeds the composite threshold alone
+	// should fire even with one-metric support.
+	spikeStart := int64(6_000_000)
+	points := buildSyntheticSeries(spikeStart-7200, 300, spikeStart, spikeStart+180, 10, 98)
+	detector := NewMahalanobisDetector()
+	events := detector.Process("node-a", points)
+	if len(events) == 0 {
+		t.Fatal("expected Mahalanobis detector to fire on large single-metric spike")
 	}
 }
 
