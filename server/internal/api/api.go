@@ -417,6 +417,9 @@ provider: "$PROVIDER"
 latitude: 0
 longitude: 0
 report_interval_seconds: 30
+queue_path: "./agent-queue.jsonl"
+queue_max_reports: 2880
+queue_flush_batch_size: 120
 YAML
 echo "    Config written: $INSTALL_DIR/config.yaml"
 
