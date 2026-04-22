@@ -30,6 +30,8 @@ StarNexus separates operational data into several layers:
 
 The split between `events` and `incidents` is deliberate. Events preserve historical evidence; incidents represent the current operational problem that a human can acknowledge or suppress.
 
+Agents attach `collected_at` to metric reports. The server stores that timestamp in `metrics_raw.created_at`, so reports replayed after a primary outage remain aligned with the actual collection time. Current node state still uses the newest report timestamp and ignores stale replay for incident state transitions.
+
 ## Metric Analytics
 
 For each node, StarNexus builds a rolling detail analysis over the selected time window. The current dashboard commonly uses 24 hours.
@@ -80,6 +82,12 @@ Incident lifecycle:
 - `recovered`: issue has resolved and remains available as history.
 
 Status incidents and metric anomaly incidents are separate. For example, a CPU stress test can open both `node_degraded` and `metric_anomaly`; recovery can occur at different times because node status is evaluated on every report, while anomaly recovery waits for the next anomaly scheduler run.
+
+Historical replay protection:
+
+- Agent disk queues preserve outage-window metric samples for analysis.
+- Stale replayed reports do not open new degraded/offline status incidents.
+- Older replayed samples do not overwrite the latest `node_metrics` snapshot.
 
 ## Reliability Score
 

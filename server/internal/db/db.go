@@ -250,6 +250,7 @@ type ReportLink struct {
 }
 
 type ReportRequest struct {
+	CollectedAt    int64   `json:"collected_at"`
 	NodeID         string  `json:"node_id"`
 	Name           string  `json:"name"`
 	Provider       string  `json:"provider"`
@@ -273,6 +274,7 @@ type ReportRequest struct {
 // UpsertReport inserts or updates a node and its metrics. Returns the old status (or "" if new node).
 func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 	now := time.Now().Unix()
+	metricTime := normalizeCollectedAt(r.CollectedAt, now)
 
 	// Get old status
 	row := d.conn.QueryRow("SELECT status FROM nodes WHERE id = ?", r.NodeID)
@@ -301,18 +303,18 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 		INSERT INTO node_metrics (node_id, cpu_percent, memory_percent, disk_percent, bandwidth_up, bandwidth_down, load_avg, connections, uptime_seconds, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
-			cpu_percent = excluded.cpu_percent,
-			memory_percent = excluded.memory_percent,
-			disk_percent = excluded.disk_percent,
-			bandwidth_up = excluded.bandwidth_up,
-			bandwidth_down = excluded.bandwidth_down,
-			load_avg = excluded.load_avg,
-			connections = excluded.connections,
-			uptime_seconds = excluded.uptime_seconds,
-			updated_at = excluded.updated_at
+			cpu_percent = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.cpu_percent ELSE node_metrics.cpu_percent END,
+			memory_percent = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.memory_percent ELSE node_metrics.memory_percent END,
+			disk_percent = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.disk_percent ELSE node_metrics.disk_percent END,
+			bandwidth_up = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.bandwidth_up ELSE node_metrics.bandwidth_up END,
+			bandwidth_down = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.bandwidth_down ELSE node_metrics.bandwidth_down END,
+			load_avg = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.load_avg ELSE node_metrics.load_avg END,
+			connections = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.connections ELSE node_metrics.connections END,
+			uptime_seconds = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.uptime_seconds ELSE node_metrics.uptime_seconds END,
+			updated_at = CASE WHEN excluded.updated_at >= node_metrics.updated_at THEN excluded.updated_at ELSE node_metrics.updated_at END
 	`, r.NodeID, r.Metrics.CPUPercent, r.Metrics.MemoryPercent, r.Metrics.DiskPercent,
 		r.Metrics.BandwidthUp, r.Metrics.BandwidthDown, r.Metrics.LoadAvg,
-		r.Metrics.Connections, r.Metrics.UptimeSeconds, now)
+		r.Metrics.Connections, r.Metrics.UptimeSeconds, metricTime)
 	if err != nil {
 		return
 	}
@@ -323,7 +325,7 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, r.NodeID, r.Metrics.CPUPercent, r.Metrics.MemoryPercent, r.Metrics.DiskPercent,
 		r.Metrics.BandwidthUp, r.Metrics.BandwidthDown, r.Metrics.LoadAvg,
-		r.Metrics.Connections, now)
+		r.Metrics.Connections, metricTime)
 
 	// Upsert links
 	for _, link := range r.Links {
@@ -337,17 +339,31 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 			INSERT INTO links (source_node_id, target_node_id, latency_ms, packet_loss, status, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT(source_node_id, target_node_id) DO UPDATE SET
-				latency_ms = excluded.latency_ms,
-				packet_loss = excluded.packet_loss,
-				status = excluded.status,
-				updated_at = excluded.updated_at
-		`, r.NodeID, link.TargetNodeID, link.LatencyMs, link.PacketLoss, status, now)
+				latency_ms = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.latency_ms ELSE links.latency_ms END,
+				packet_loss = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.packet_loss ELSE links.packet_loss END,
+				status = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.status ELSE links.status END,
+				updated_at = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.updated_at ELSE links.updated_at END
+		`, r.NodeID, link.TargetNodeID, link.LatencyMs, link.PacketLoss, status, metricTime)
 		if err != nil {
 			return
 		}
 	}
 
 	return
+}
+
+func normalizeCollectedAt(collectedAt, now int64) int64 {
+	if collectedAt <= 0 {
+		return now
+	}
+	if collectedAt > now+60 {
+		return now
+	}
+	const maxBackfillAge = 90 * 24 * 60 * 60
+	if collectedAt < now-maxBackfillAge {
+		return now
+	}
+	return collectedAt
 }
 
 func (d *DB) RecordStatusChange(nodeID, oldStatus, newStatus, reason string) error {

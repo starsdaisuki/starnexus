@@ -92,10 +92,10 @@ Deliverables:
 
 ### 4. Operational Hardening
 
-After incident lifecycle, evaluation, baseline backup tooling, server health/version endpoints, and startup config validation:
+After incident lifecycle, evaluation, backup tooling, server health/version endpoints, startup config validation, and the agent disk-backed report queue:
 
 - Bot/agent local health endpoints if they become useful outside systemd.
-- Optional disk-backed agent queue for primary-server outages.
+- Backup cron alerting if scheduled backups fail.
 - Systemd hardening where it does not break agent observability.
 
 ### 5. Generic VPS Productization
@@ -112,4 +112,4 @@ Needed work:
 
 ## Near-Term Priority
 
-The highest-value next commit is incident lifecycle support. It directly improves day-to-day operations, reduces alert spam, and gives the analytics layer a cleaner ground truth object than raw event rows.
+The highest-value remaining work is productization and richer analysis: dry-run onboarding, more repeated labelled experiments, root-cause classification, and exportable statistical figures.

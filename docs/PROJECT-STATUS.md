@@ -108,10 +108,10 @@ It:
 
 Current live experiment baseline:
 
-- 2 LisaHost CPU-only experiments.
+- 3 LisaHost CPU-only experiments.
 - Detection rate: 100%.
-- Mean detection delay: about 32 seconds.
-- Mean recovery delay: about 32 seconds.
+- Mean detection delay: about 34 seconds.
+- Mean recovery delay: about 24 seconds.
 
 ### Telegram Bot Upgrade
 
@@ -143,6 +143,16 @@ Operational scripts now include:
 - `scripts/sync-agent.sh`: safe agent binary sync to existing nodes.
 - `scripts/onboard-node.sh`: one-command new VPS onboarding.
 - `scripts/fault-injection.sh`: labelled CPU-only experiments.
+- `scripts/backup-db.sh`: consistent remote SQLite backup with optional local retention.
+- `scripts/restore-db.sh`: guarded restore with service stop/start and API verification.
+- `scripts/install-backup-cron.sh`: remote daily backup cron on the primary VPS.
+
+Agents now have a disk-backed metric report queue:
+
+- Default path: `./agent-queue.jsonl`.
+- Default capacity: 2880 reports, about 24 hours at a 30-second interval.
+- Queued reports keep original `collected_at` timestamps for historical analysis.
+- Historical replay does not overwrite newer current metrics or create fresh status incidents.
 
 Existing agent update:
 
@@ -265,7 +275,7 @@ Port `8900` should stay private. Further hardening can include:
 - Stronger install-script validation.
 - Optional mTLS or WireGuard overlay.
 - Least-privilege systemd users.
-- Explicit backup and restore commands.
+- Backup failure alerting.
 
 ### Data Model Limits
 
@@ -288,6 +298,8 @@ Add a repeatable experiment suite:
 - Generate a Markdown or CSV result table.
 
 This gives the project strong evidence.
+
+Also include non-experiment steady-state windows so false-positive rate can be reported per node-hour, not just as a raw event count.
 
 ### 2. Dashboard Analysis Polish
 

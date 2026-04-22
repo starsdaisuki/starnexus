@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/starsdaisuki/starnexus/agent/internal/collector"
@@ -40,10 +39,9 @@ func (r *Reporter) SendConnections(report ConnReport) {
 	resp.Body.Close()
 }
 
-const bufferCapacity = 120 // 1 hour at 30s intervals
-
 // Report is the payload sent to the server.
 type Report struct {
+	CollectedAt    int64              `json:"collected_at,omitempty"`
 	NodeID         string             `json:"node_id"`
 	Name           string             `json:"name"`
 	Provider       string             `json:"provider"`
@@ -55,38 +53,66 @@ type Report struct {
 	Links          []probe.LinkResult `json:"links,omitempty"`
 }
 
-// Reporter handles sending reports to the server with a ring buffer for failures.
+type QueueOptions struct {
+	Path           string
+	MaxReports     int
+	FlushBatchSize int
+}
+
+// Reporter handles sending reports to the server with optional disk buffering.
 type Reporter struct {
 	serverURL string
 	token     string
 	client    *http.Client
 
-	mu     sync.Mutex
-	buffer []Report // ring buffer
-	head   int      // next write index
-	count  int      // number of buffered items
+	queue          *DiskQueue
+	flushBatchSize int
 }
 
 func New(serverURL, token string) *Reporter {
-	return &Reporter{
+	rep, _ := NewWithQueue(serverURL, token, QueueOptions{})
+	return rep
+}
+
+func NewWithQueue(serverURL, token string, options QueueOptions) (*Reporter, error) {
+	rep := &Reporter{
 		serverURL: serverURL,
 		token:     token,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		buffer: make([]Report, bufferCapacity),
 	}
+	if options.FlushBatchSize > 0 {
+		rep.flushBatchSize = options.FlushBatchSize
+	} else {
+		rep.flushBatchSize = 120
+	}
+	if options.Path != "" {
+		queue, err := NewDiskQueue(options.Path, options.MaxReports)
+		if err != nil {
+			return nil, err
+		}
+		rep.queue = queue
+	}
+	return rep, nil
 }
 
-// Send attempts to send a report. On failure, buffers it. On success, flushes the buffer.
+// Send attempts to send a report. On failure, persists it. On success, flushes persisted reports.
 func (r *Reporter) Send(report Report) {
 	if err := r.post(report); err != nil {
-		log.Printf("Report failed, buffering (%d/%d): %v", r.bufferedCount()+1, bufferCapacity, err)
-		r.enqueue(report)
+		if r.queue == nil {
+			log.Printf("Report failed and disk queue is disabled: %v", err)
+			return
+		}
+		if queueErr := r.queue.Enqueue(report); queueErr != nil {
+			log.Printf("Report failed and queue write failed: send=%v queue=%v", err, queueErr)
+			return
+		}
+		count, _ := r.queue.Count()
+		log.Printf("Report failed, persisted to disk queue (%d reports): %v", count, err)
 		return
 	}
 
-	// Success — flush any buffered reports
 	r.flush()
 }
 
@@ -116,52 +142,42 @@ func (r *Reporter) post(report Report) error {
 	return nil
 }
 
-func (r *Reporter) enqueue(report Report) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.buffer[r.head] = report
-	r.head = (r.head + 1) % bufferCapacity
-	if r.count < bufferCapacity {
-		r.count++
-	}
-}
-
 func (r *Reporter) flush() {
-	r.mu.Lock()
-	if r.count == 0 {
-		r.mu.Unlock()
+	if r.queue == nil {
 		return
 	}
 
-	// Copy buffered items out
-	items := make([]Report, r.count)
-	start := (r.head - r.count + bufferCapacity) % bufferCapacity
-	for i := 0; i < r.count; i++ {
-		items[i] = r.buffer[(start+i)%bufferCapacity]
-	}
-	r.count = 0
-	r.head = 0
-	r.mu.Unlock()
-
-	log.Printf("Flushing %d buffered reports", len(items))
-	failed := 0
-	for _, item := range items {
-		if err := r.post(item); err != nil {
-			// Re-buffer failures
-			r.enqueue(item)
-			failed++
+	totalSent := 0
+	for {
+		items, err := r.queue.LoadBatch(r.flushBatchSize)
+		if err != nil {
+			log.Printf("Queue flush failed while loading: %v", err)
+			return
 		}
-	}
-	if failed > 0 {
-		log.Printf("Flush: %d/%d reports failed, re-buffered", failed, len(items))
-	} else {
-		log.Printf("Flush: all %d reports sent successfully", len(items))
-	}
-}
+		if len(items) == 0 {
+			if totalSent > 0 {
+				log.Printf("Flush: all %d queued reports sent successfully", totalSent)
+			}
+			return
+		}
 
-func (r *Reporter) bufferedCount() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.count
+		sent := 0
+		for _, item := range items {
+			if err := r.post(item); err != nil {
+				if sent > 0 {
+					if dropErr := r.queue.DropFirst(sent); dropErr != nil {
+						log.Printf("Queue flush failed while dropping sent reports: %v", dropErr)
+					}
+				}
+				log.Printf("Flush paused after %d/%d queued reports: %v", totalSent+sent, totalSent+len(items), err)
+				return
+			}
+			sent++
+		}
+		if err := r.queue.DropFirst(sent); err != nil {
+			log.Printf("Queue flush failed while dropping sent reports: %v", err)
+			return
+		}
+		totalSent += sent
+	}
 }

@@ -44,8 +44,19 @@ Defaults:
 - `node_name`: defaults to `node_id`.
 - `provider`: defaults to `Unknown`.
 - `report_interval_seconds`: default `30`, accepted range `5..3600`.
+- `queue_path`: default `./agent-queue.jsonl`. Set to an empty string to disable disk buffering.
+- `queue_max_reports`: default `2880`, about 24 hours at a 30-second report interval.
+- `queue_flush_batch_size`: default `120`, accepted range `1..1000`.
 - `connection_report_interval_seconds`: default `5`, accepted range `1..300`.
 - `geoip_db_path`: default `./GeoLite2-City.mmdb`.
+
+Report queue:
+
+- Failed metric reports are persisted to the agent queue as JSONL.
+- When the primary server becomes reachable again, the agent sends the newest live report first and then replays queued reports in FIFO order.
+- Replayed reports keep their original `collected_at` timestamp for historical analysis.
+- Replayed reports older than the realtime grace window are treated as history and do not create fresh status incidents.
+- If the queue exceeds `queue_max_reports`, the oldest reports are dropped first.
 
 Coordinates:
 

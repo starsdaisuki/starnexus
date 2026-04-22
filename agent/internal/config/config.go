@@ -26,6 +26,9 @@ type Config struct {
 	Latitude              float64        `yaml:"latitude"`
 	Longitude             float64        `yaml:"longitude"`
 	ReportIntervalSeconds int            `yaml:"report_interval_seconds"`
+	QueuePath             string         `yaml:"queue_path"`
+	QueueMaxReports       int            `yaml:"queue_max_reports"`
+	QueueFlushBatchSize   int            `yaml:"queue_flush_batch_size"`
 	ProbeTargets          []ProbeTarget  `yaml:"probe_targets"`
 	GeoIPDBPath           string         `yaml:"geoip_db_path"`
 	ConnIntervalSeconds   int            `yaml:"connection_report_interval_seconds"`
@@ -41,6 +44,9 @@ func Load(path string) (*Config, error) {
 
 	cfg := &Config{
 		ReportIntervalSeconds: 30,
+		QueuePath:             "./agent-queue.jsonl",
+		QueueMaxReports:       2880,
+		QueueFlushBatchSize:   120,
 		ConnIntervalSeconds:   5,
 		GeoIPDBPath:           "./GeoLite2-City.mmdb",
 		ProxyProcesses:        []string{"xray", "sing-box", "x-ui", "3x-ui"},
@@ -87,6 +93,15 @@ func (c *Config) Validate() error {
 	}
 	if c.ReportIntervalSeconds < 5 || c.ReportIntervalSeconds > 3600 {
 		problems = append(problems, "report_interval_seconds must be between 5 and 3600")
+	}
+	if c.QueuePath != "" && c.QueueMaxReports < 1 {
+		problems = append(problems, "queue_max_reports must be at least 1 when queue_path is set")
+	}
+	if c.QueueMaxReports > 100000 {
+		problems = append(problems, "queue_max_reports must be no more than 100000")
+	}
+	if c.QueueFlushBatchSize < 1 || c.QueueFlushBatchSize > 1000 {
+		problems = append(problems, "queue_flush_batch_size must be between 1 and 1000")
 	}
 	if c.ConnIntervalSeconds < 1 || c.ConnIntervalSeconds > 300 {
 		problems = append(problems, "connection_report_interval_seconds must be between 1 and 300")

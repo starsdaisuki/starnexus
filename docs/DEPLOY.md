@@ -220,6 +220,12 @@ longitude: 139.6503
 # How often to collect and report metrics (seconds).
 report_interval_seconds: 30
 
+# Disk-backed metric report queue for primary-server/network outages.
+# 2880 reports is about 24h at the default 30s interval.
+queue_path: "./agent-queue.jsonl"
+queue_max_reports: 2880
+queue_flush_batch_size: 120
+
 # GeoIP database for connection geolocation.
 geoip_db_path: "./GeoLite2-City.mmdb"
 
@@ -651,10 +657,14 @@ Preferences are stored in `starnexus-bot-state.json` in the bot working director
 
 ```bash
 scripts/backup-db.sh --host dmit
+scripts/backup-db.sh --host dmit --keep 14
 scripts/restore-db.sh --host dmit --backup backups/starnexus-db-dmit-YYYYMMDDTHHMMSSZ.sqlite.gz
+scripts/install-backup-cron.sh --host dmit --keep 14
 ```
 
 `backup-db.sh` uses SQLite `.backup` on the remote host so the snapshot is consistent even while the server is running. `restore-db.sh` stops `starnexus-server` and `starnexus-bot`, saves the current database as `starnexus.db.pre-restore.<timestamp>`, restores the backup, removes stale WAL/SHM sidecars, restarts services, and verifies `/api/status`.
+
+`install-backup-cron.sh` installs `/root/starnexus/backup-db-local.sh` and a `starnexus-backup` cron entry on the primary VPS. The default schedule is 03:20 server local time and keeps the newest 14 compressed SQLite backups under `/root/starnexus/backups`.
 
 ### Remove a node
 

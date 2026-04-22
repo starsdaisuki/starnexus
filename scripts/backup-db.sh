@@ -4,6 +4,7 @@ set -euo pipefail
 HOST="dmit"
 REMOTE_DB="/root/starnexus/starnexus.db"
 OUT_DIR="backups"
+KEEP=0
 
 usage() {
   cat <<'EOF'
@@ -14,6 +15,7 @@ Options:
   --host <ssh-alias>     SSH host for the primary StarNexus server. Default: dmit
   --remote-db <path>     Remote SQLite database path. Default: /root/starnexus/starnexus.db
   --out-dir <path>       Local backup output directory. Default: backups
+  --keep <count>         Keep only the newest count backups for this host. Default: keep all
   -h, --help             Show this help.
 
 Creates a consistent SQLite snapshot using sqlite3 ".backup", compresses it,
@@ -30,11 +32,17 @@ while [[ $# -gt 0 ]]; do
     --host) HOST="$2"; shift 2 ;;
     --remote-db) REMOTE_DB="$2"; shift 2 ;;
     --out-dir) OUT_DIR="$2"; shift 2 ;;
+    --keep) KEEP="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     --*) err "unknown option: $1"; usage; exit 1 ;;
     *) err "unexpected argument: $1"; usage; exit 1 ;;
   esac
 done
+
+if ! [[ "$KEEP" =~ ^[0-9]+$ ]]; then
+  err "--keep must be a non-negative integer"
+  exit 1
+fi
 
 mkdir -p "$OUT_DIR"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -69,3 +77,15 @@ if [[ ! -s "$out_path" ]]; then
 fi
 
 ok "backup written: $out_path"
+
+if [[ "$KEEP" -gt 0 ]]; then
+  removed=0
+  while IFS= read -r old_backup; do
+    [[ -z "$old_backup" ]] && continue
+    rm -f "$old_backup"
+    removed=$((removed + 1))
+  done < <(ls -1t "$OUT_DIR"/starnexus-db-"$safe_host"-*.sqlite.gz 2>/dev/null | tail -n +"$((KEEP + 1))")
+  if [[ "$removed" -gt 0 ]]; then
+    ok "retention removed $removed old backup(s); kept newest $KEEP"
+  fi
+fi

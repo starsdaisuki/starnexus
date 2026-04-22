@@ -209,6 +209,10 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
+	if isHistoricalReplay(req.CollectedAt) {
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
 
 	targetStatus := "online"
 	reason := "Node healthy"
@@ -247,6 +251,14 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func isHistoricalReplay(collectedAt int64) bool {
+	if collectedAt <= 0 {
+		return false
+	}
+	const realtimeGraceSeconds = 180
+	return time.Now().Unix()-collectedAt > realtimeGraceSeconds
 }
 
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {

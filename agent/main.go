@@ -66,7 +66,18 @@ func main() {
 	log.Printf("StarNexus agent starting: node=%s server=%s interval=%ds probes=%d",
 		cfg.NodeID, cfg.ServerURL, cfg.ReportIntervalSeconds, len(cfg.ProbeTargets))
 
-	rep := reporter.New(cfg.ServerURL, cfg.APIToken)
+	rep, err := reporter.NewWithQueue(cfg.ServerURL, cfg.APIToken, reporter.QueueOptions{
+		Path:           cfg.QueuePath,
+		MaxReports:     cfg.QueueMaxReports,
+		FlushBatchSize: cfg.QueueFlushBatchSize,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize reporter queue: %v", err)
+	}
+	if cfg.QueuePath != "" {
+		log.Printf("Disk report queue enabled: path=%s max_reports=%d flush_batch=%d",
+			cfg.QueuePath, cfg.QueueMaxReports, cfg.QueueFlushBatchSize)
+	}
 
 	// Graceful shutdown
 	stop := make(chan os.Signal, 1)
@@ -136,6 +147,7 @@ func collectAndReport(cfg *config.Config, rep *reporter.Reporter, locationSource
 	}
 
 	report := reporter.Report{
+		CollectedAt:    time.Now().Unix(),
 		NodeID:         cfg.NodeID,
 		Name:           cfg.NodeName,
 		Provider:       cfg.Provider,
