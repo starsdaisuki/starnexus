@@ -24,6 +24,16 @@ func main() {
 			fmt.Println(buildinfo.Current("starnexus-agent").String())
 			return
 		}
+		if os.Args[1] == "--check-config" || os.Args[1] == "check-config" {
+			if len(os.Args) > 2 {
+				cfgPath = os.Args[2]
+			}
+			if _, err := config.Load(cfgPath); err != nil {
+				log.Fatalf("Config check failed: %v", err)
+			}
+			fmt.Printf("Config OK: %s\n", cfgPath)
+			return
+		}
 		cfgPath = os.Args[1]
 	}
 

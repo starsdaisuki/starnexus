@@ -355,6 +355,10 @@ Verify:
 systemctl is-active starnexus-server starnexus-agent starnexus-bot
 # Should print: active active active
 
+./starnexus-server --check-config ./config.yaml
+./starnexus-agent --check-config ./agent-config.yaml
+./starnexus-bot --check-config ./bot-config.yaml
+
 curl -s http://localhost:8900/api/status
 # Should print: {"total":1,"online":1,...}
 

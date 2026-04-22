@@ -92,7 +92,7 @@ Deliverables:
 
 ### 4. Operational Hardening
 
-After incident lifecycle, evaluation, baseline backup tooling, and server health/version endpoints:
+After incident lifecycle, evaluation, baseline backup tooling, server health/version endpoints, and startup config validation:
 
 - Bot/agent local health endpoints if they become useful outside systemd.
 - Optional disk-backed agent queue for primary-server outages.

@@ -167,6 +167,8 @@ CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labe
 
 For the current project status, recent upgrade summary, level assessment, method, results, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md), [`docs/METHOD.md`](docs/METHOD.md), [`docs/RESULTS.md`](docs/RESULTS.md), and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+Configuration is validated at startup; see [`docs/CONFIG.md`](docs/CONFIG.md) for required fields and `--check-config` usage.
+
 ## License
 
 MIT
