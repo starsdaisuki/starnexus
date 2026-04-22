@@ -26,6 +26,9 @@ GeoLite2-City.mmdb
 analysis-output/
 backups/
 
-# Dev logs (private, do not push)
+# Dev logs — private by default (may contain VPS IPs, tokens, internal notes).
+# Individual logs can be made public by adding a negated exception below.
 docs/dev-log-*.md
 docs/starnexus-dev-log-*.md
+!docs/dev-log-20260422.md
+

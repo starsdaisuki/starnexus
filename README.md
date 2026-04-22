@@ -231,6 +231,7 @@ Primary server config is cached in `~/.starnexus.env` on first run.
 - [`docs/FAULT-INJECTION.md`](docs/FAULT-INJECTION.md) — CPU-only safe fault-injection wrapper
 - [`docs/CONFIG.md`](docs/CONFIG.md) — required config fields + `--check-config` usage
 - [`docs/DEPLOY.md`](docs/DEPLOY.md) — full production deployment runbook
+- [`docs/dev-log-20260422.md`](docs/dev-log-20260422.md) — public dev log for the evaluation/observability sprint (benchmark, scalability, figures, docs overhaul)
 
 ## License
 
