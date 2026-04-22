@@ -49,4 +49,45 @@ func TestBuildGroundTruthEvaluationMeasuresDelays(t *testing.T) {
 	if evaluation.Experiments[0].PeakMetricValue != 100 {
 		t.Fatalf("unexpected peak metric: %.1f", evaluation.Experiments[0].PeakMetricValue)
 	}
+	if evaluation.ObservationNodeHours == 0 || evaluation.ExperimentNodeHours == 0 {
+		t.Fatalf("expected exposure hours to be calculated: %#v", evaluation)
+	}
+}
+
+func TestBuildGroundTruthEvaluationCalculatesFalsePositiveRate(t *testing.T) {
+	nodeID := "node-a"
+	events := []db.Event{
+		{NodeID: &nodeID, Type: "anomaly", Severity: "warning", Title: "CPU outlier detected", CreatedAt: 2100},
+		{NodeID: &nodeID, Type: "status_change", Severity: "warning", Title: "Node degraded", CreatedAt: 4000},
+	}
+	points := map[string][]db.MetricPoint{
+		nodeID: {
+			{Timestamp: 1000, CPUPercent: 5},
+			{Timestamp: 4600, CPUPercent: 5},
+		},
+	}
+	labels := []ExperimentLabel{
+		{
+			ExperimentID:   "cpu-test",
+			NodeID:         nodeID,
+			InjectionType:  "cpu_stress",
+			ExpectedMetric: "cpu_percent",
+			StartedAt:      2000,
+			EndedAt:        2200,
+		},
+	}
+
+	evaluation := BuildGroundTruthEvaluation(labels, events, points)
+	if evaluation.FalsePositiveEventCount != 1 || evaluation.FalsePositiveStatusCount != 1 || evaluation.FalsePositiveAnomalyCount != 0 {
+		t.Fatalf("unexpected false-positive counts: %#v", evaluation)
+	}
+	if evaluation.ObservationNodeHours != 1 {
+		t.Fatalf("expected 1 observation node-hour, got %.4f", evaluation.ObservationNodeHours)
+	}
+	if evaluation.ExperimentNodeHours <= 0 || evaluation.SteadyStateNodeHours <= 0 {
+		t.Fatalf("expected non-zero exposure values: %#v", evaluation)
+	}
+	if evaluation.FalsePositiveRate <= 0 {
+		t.Fatalf("expected false-positive rate, got %#v", evaluation)
+	}
 }

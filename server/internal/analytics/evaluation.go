@@ -70,9 +70,15 @@ type GroundTruthEvaluation struct {
 	AnomalyDetectionCount     int                    `json:"anomaly_detection_count"`
 	MeanDetectionDelaySeconds float64                `json:"mean_detection_delay_seconds"`
 	MeanRecoveryDelaySeconds  float64                `json:"mean_recovery_delay_seconds"`
+	ObservationNodeHours      float64                `json:"observation_node_hours"`
+	ExperimentNodeHours       float64                `json:"experiment_node_hours"`
+	SteadyStateNodeHours      float64                `json:"steady_state_node_hours"`
 	FalsePositiveEventCount   int                    `json:"false_positive_event_count"`
 	FalsePositiveStatusCount  int                    `json:"false_positive_status_count"`
 	FalsePositiveAnomalyCount int                    `json:"false_positive_anomaly_count"`
+	FalsePositiveRate         float64                `json:"false_positive_events_per_node_hour"`
+	FalsePositiveStatusRate   float64                `json:"false_positive_status_per_node_hour"`
+	FalsePositiveAnomalyRate  float64                `json:"false_positive_anomaly_per_node_hour"`
 	DetectionRatePercent      float64                `json:"detection_rate_percent"`
 	RecoveryRatePercent       float64                `json:"recovery_rate_percent"`
 	Experiments               []ExperimentEvaluation `json:"experiments"`
@@ -202,6 +208,12 @@ func BuildGroundTruthEvaluation(labels []ExperimentLabel, events []db.Event, poi
 		evaluation.MeanRecoveryDelaySeconds = float64(recoveryDelayTotal) / float64(evaluation.RecoveredCount)
 	}
 	evaluation.FalsePositiveEventCount, evaluation.FalsePositiveStatusCount, evaluation.FalsePositiveAnomalyCount = countFalsePositiveEvents(labels, events)
+	evaluation.ObservationNodeHours, evaluation.ExperimentNodeHours, evaluation.SteadyStateNodeHours = calculateGroundTruthExposure(labels, pointsByNode)
+	if evaluation.SteadyStateNodeHours > 0 {
+		evaluation.FalsePositiveRate = float64(evaluation.FalsePositiveEventCount) / evaluation.SteadyStateNodeHours
+		evaluation.FalsePositiveStatusRate = float64(evaluation.FalsePositiveStatusCount) / evaluation.SteadyStateNodeHours
+		evaluation.FalsePositiveAnomalyRate = float64(evaluation.FalsePositiveAnomalyCount) / evaluation.SteadyStateNodeHours
+	}
 	evaluation.DetectionRatePercent = float64(evaluation.DetectedCount) / float64(evaluation.ExperimentCount) * 100
 	evaluation.RecoveryRatePercent = float64(evaluation.RecoveredCount) / float64(evaluation.ExperimentCount) * 100
 	return evaluation
@@ -329,6 +341,114 @@ func countFalsePositiveEvents(labels []ExperimentLabel, events []db.Event) (tota
 		}
 	}
 	return total, statusCount, anomalyCount
+}
+
+func calculateGroundTruthExposure(labels []ExperimentLabel, pointsByNode map[string][]db.MetricPoint) (observationHours float64, experimentHours float64, steadyStateHours float64) {
+	for nodeID, points := range pointsByNode {
+		if len(points) < 2 {
+			continue
+		}
+		start, end := metricSpan(points)
+		if end <= start {
+			continue
+		}
+		observationSeconds := end - start
+		experimentSeconds := overlapSeconds(start, end, experimentIntervalsForNode(labels, nodeID, false))
+		exclusionSeconds := overlapSeconds(start, end, experimentIntervalsForNode(labels, nodeID, true))
+		steadySeconds := observationSeconds - exclusionSeconds
+		if steadySeconds < 0 {
+			steadySeconds = 0
+		}
+		observationHours += float64(observationSeconds) / 3600
+		experimentHours += float64(experimentSeconds) / 3600
+		steadyStateHours += float64(steadySeconds) / 3600
+	}
+	return observationHours, experimentHours, steadyStateHours
+}
+
+type interval struct {
+	start int64
+	end   int64
+}
+
+func metricSpan(points []db.MetricPoint) (int64, int64) {
+	start := points[0].Timestamp
+	end := points[0].Timestamp
+	for _, point := range points[1:] {
+		if point.Timestamp < start {
+			start = point.Timestamp
+		}
+		if point.Timestamp > end {
+			end = point.Timestamp
+		}
+	}
+	return start, end
+}
+
+func experimentIntervalsForNode(labels []ExperimentLabel, nodeID string, includeDetectionGrace bool) []interval {
+	intervals := []interval{}
+	for _, label := range labels {
+		if label.NodeID != nodeID || label.EndedAt <= label.StartedAt {
+			continue
+		}
+		end := label.EndedAt
+		if includeDetectionGrace {
+			end += 300
+		}
+		intervals = append(intervals, interval{start: label.StartedAt, end: end})
+	}
+	return mergeIntervals(intervals)
+}
+
+func mergeIntervals(intervals []interval) []interval {
+	if len(intervals) < 2 {
+		return intervals
+	}
+	for i := 0; i < len(intervals); i++ {
+		for j := i + 1; j < len(intervals); j++ {
+			if intervals[j].start < intervals[i].start {
+				intervals[i], intervals[j] = intervals[j], intervals[i]
+			}
+		}
+	}
+	merged := []interval{intervals[0]}
+	for _, current := range intervals[1:] {
+		last := &merged[len(merged)-1]
+		if current.start <= last.end {
+			if current.end > last.end {
+				last.end = current.end
+			}
+			continue
+		}
+		merged = append(merged, current)
+	}
+	return merged
+}
+
+func overlapSeconds(start, end int64, intervals []interval) int64 {
+	var total int64
+	for _, item := range intervals {
+		overlapStart := maxInt64(start, item.start)
+		overlapEnd := minInt64(end, item.end)
+		if overlapEnd > overlapStart {
+			total += overlapEnd - overlapStart
+		}
+	}
+	return total
+}
+
+func minInt64(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func eventsChronological(events []db.Event) []db.Event {

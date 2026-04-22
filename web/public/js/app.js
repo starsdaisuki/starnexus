@@ -330,7 +330,7 @@ const StarApp = (() => {
     document.getElementById('experiment-recovery-rate').textContent = `${Number(groundTruth.recovery_rate_percent || 0).toFixed(0)}%`
     document.getElementById('experiment-recovery-delay').textContent = `delay ${formatDuration(groundTruth.mean_recovery_delay_seconds)}`
     document.getElementById('experiment-false-positive').textContent = `${groundTruth.false_positive_event_count || 0}`
-    document.getElementById('experiment-false-positive').nextElementSibling.textContent = `status/anomaly ${groundTruth.false_positive_status_count || 0}/${groundTruth.false_positive_anomaly_count || 0}`
+    document.getElementById('experiment-false-positive').nextElementSibling.textContent = `${Number(groundTruth.false_positive_events_per_node_hour || 0).toFixed(2)}/node-hour • status/anomaly ${groundTruth.false_positive_status_count || 0}/${groundTruth.false_positive_anomaly_count || 0}`
 
     ;(groundTruth.experiments || []).slice(0, 6).forEach(experiment => {
       const article = document.createElement('article')

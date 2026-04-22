@@ -80,6 +80,8 @@ The analytics layer now includes:
 - Fleet-level radar.
 - Node-level detail analytics.
 - Operational reliability score.
+- False-positive rate per steady-state node-hour.
+- Heuristic event classification for root-cause-oriented reports.
 
 Important distinction:
 

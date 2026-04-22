@@ -67,7 +67,7 @@ The result is not yet a full statistical validation:
 - All labelled trials are CPU-only.
 - All labelled trials are on one VPS.
 - Detection is currently dominated by status-threshold events, not only robust anomaly detection.
-- The false-positive count is still high because historical anomaly/status events outside labelled windows are counted in the dashboard window.
+- Raw false-positive counts are supplemented by false positives per steady-state node-hour, which is a better comparison metric across windows and fleet sizes.
 
 ## Next Evaluation Work
 

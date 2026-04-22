@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 
@@ -16,11 +17,12 @@ import (
 )
 
 type analysisBundle struct {
-	GeneratedAt    int64                      `json:"generated_at"`
-	WindowHours    int                        `json:"window_hours"`
-	FleetAnalytics analytics.FleetAnalytics   `json:"fleet_analytics"`
-	Evaluation     analytics.EvaluationReport `json:"evaluation"`
-	NodeAnalytics  []nodeAnalytics            `json:"node_analytics"`
+	GeneratedAt    int64                           `json:"generated_at"`
+	WindowHours    int                             `json:"window_hours"`
+	FleetAnalytics analytics.FleetAnalytics        `json:"fleet_analytics"`
+	Evaluation     analytics.EvaluationReport      `json:"evaluation"`
+	NodeAnalytics  []nodeAnalytics                 `json:"node_analytics"`
+	EventClasses   []analytics.EventClassification `json:"event_classifications"`
 }
 
 type nodeAnalytics struct {
@@ -110,6 +112,10 @@ func main() {
 	if err := writeEventsCSV(filepath.Join(outDir, "events.csv"), events); err != nil {
 		log.Fatalf("write events.csv: %v", err)
 	}
+	eventClasses := analytics.BuildEventClassifications(events)
+	if err := writeEventClassificationsCSV(filepath.Join(outDir, "event_classifications.csv"), eventClasses); err != nil {
+		log.Fatalf("write event_classifications.csv: %v", err)
+	}
 
 	sources, err := database.GetConnectionHighlights(from, 5000)
 	if err != nil {
@@ -138,6 +144,7 @@ func main() {
 		FleetAnalytics: fleet,
 		Evaluation:     evaluation,
 		NodeAnalytics:  nodeDetails,
+		EventClasses:   eventClasses,
 	}
 
 	if err := writeJSON(filepath.Join(outDir, "analytics.json"), bundle); err != nil {
@@ -241,6 +248,38 @@ func writeEventsCSV(path string, events []db.Event) error {
 			event.Title,
 			stringPtr(event.Body),
 			strconv.FormatInt(event.CreatedAt, 10),
+		}); err != nil {
+			return err
+		}
+	}
+	return writer.Error()
+}
+
+func writeEventClassificationsCSV(path string, classifications []analytics.EventClassification) error {
+	file, writer, err := createCSV(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	defer writer.Flush()
+
+	if err := writer.Write([]string{"event_id", "node_id", "node_name", "event_type", "severity", "title", "category", "metric", "likely_cause", "confidence", "evidence", "created_at"}); err != nil {
+		return err
+	}
+	for _, item := range classifications {
+		if err := writer.Write([]string{
+			strconv.FormatInt(item.EventID, 10),
+			item.NodeID,
+			item.NodeName,
+			item.EventType,
+			item.Severity,
+			item.Title,
+			item.Category,
+			item.Metric,
+			item.LikelyCause,
+			fmt.Sprintf("%.2f", item.Confidence),
+			item.Evidence,
+			strconv.FormatInt(item.CreatedAt, 10),
 		}); err != nil {
 			return err
 		}
@@ -369,11 +408,33 @@ Generated at: %s
 
 	if eval.GroundTruth != nil {
 		gt := eval.GroundTruth
-		if _, err := fmt.Fprintf(file, "\n## Ground-Truth Experiments\n\n- Experiments: %d\n- Detection rate: %.1f%%\n- Status detections: %d\n- Anomaly detections: %d\n- Mean detection delay: %.1fs\n- Recovery rate: %.1f%%\n- Mean recovery delay: %.1fs\n- False-positive events outside labelled windows: %d (%d status, %d anomaly)\n\n", gt.ExperimentCount, gt.DetectionRatePercent, gt.StatusDetectionCount, gt.AnomalyDetectionCount, gt.MeanDetectionDelaySeconds, gt.RecoveryRatePercent, gt.MeanRecoveryDelaySeconds, gt.FalsePositiveEventCount, gt.FalsePositiveStatusCount, gt.FalsePositiveAnomalyCount); err != nil {
+		if _, err := fmt.Fprintf(file, "\n## Ground-Truth Experiments\n\n- Experiments: %d\n- Detection rate: %.1f%%\n- Status detections: %d\n- Anomaly detections: %d\n- Mean detection delay: %.1fs\n- Recovery rate: %.1f%%\n- Mean recovery delay: %.1fs\n- Observation exposure: %.2f node-hours\n- Steady-state exposure: %.2f node-hours\n- False-positive events outside labelled windows: %d (%d status, %d anomaly)\n- False-positive rate: %.3f events/node-hour (status %.3f, anomaly %.3f)\n\n", gt.ExperimentCount, gt.DetectionRatePercent, gt.StatusDetectionCount, gt.AnomalyDetectionCount, gt.MeanDetectionDelaySeconds, gt.RecoveryRatePercent, gt.MeanRecoveryDelaySeconds, gt.ObservationNodeHours, gt.SteadyStateNodeHours, gt.FalsePositiveEventCount, gt.FalsePositiveStatusCount, gt.FalsePositiveAnomalyCount, gt.FalsePositiveRate, gt.FalsePositiveStatusRate, gt.FalsePositiveAnomalyRate); err != nil {
 			return err
 		}
 		for _, experiment := range gt.Experiments {
 			if _, err := fmt.Fprintf(file, "- `%s`: detected=%t via=%s delay=%ds recovered=%t recovery=%ds peak_%s=%.1f\n", experiment.ExperimentID, experiment.Detected, experiment.DetectionType, experiment.DetectionDelaySeconds, experiment.Recovered, experiment.RecoveryDelaySeconds, experiment.ExpectedMetric, experiment.PeakMetricValue); err != nil {
+				return err
+			}
+		}
+	}
+	if len(bundle.EventClasses) > 0 {
+		if _, err := fmt.Fprint(file, "\n## Event Classification Summary\n\n"); err != nil {
+			return err
+		}
+		for _, item := range summarizeClassifications(bundle.EventClasses) {
+			if _, err := fmt.Fprintf(file, "- `%s`: %d event(s)\n", item.Category, item.Count); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprint(file, "\nRecent classified events:\n\n"); err != nil {
+			return err
+		}
+		limit := len(bundle.EventClasses)
+		if limit > 8 {
+			limit = 8
+		}
+		for _, item := range bundle.EventClasses[:limit] {
+			if _, err := fmt.Fprintf(file, "- `%s` %s: %s\n", item.Category, item.Title, item.LikelyCause); err != nil {
 				return err
 			}
 		}
@@ -387,6 +448,29 @@ Generated at: %s
 		}
 	}
 	return nil
+}
+
+type categoryCount struct {
+	Category string
+	Count    int
+}
+
+func summarizeClassifications(classifications []analytics.EventClassification) []categoryCount {
+	counts := map[string]int{}
+	for _, item := range classifications {
+		counts[item.Category]++
+	}
+	items := make([]categoryCount, 0, len(counts))
+	for category, count := range counts {
+		items = append(items, categoryCount{Category: category, Count: count})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Count == items[j].Count {
+			return items[i].Category < items[j].Category
+		}
+		return items[i].Count > items[j].Count
+	})
+	return items
 }
 
 func createCSV(path string) (*os.File, *csv.Writer, error) {

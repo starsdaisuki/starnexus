@@ -115,8 +115,17 @@ For each labelled experiment, StarNexus measures:
 - Peak metric value during the experiment.
 - False-positive detection events outside labelled windows.
 - False-positive breakdown by status events and anomaly events.
+- Observation exposure in node-hours.
+- Steady-state exposure in node-hours after excluding labelled experiment windows plus detection grace.
+- False-positive rate per node-hour.
 
 Current fault injection is CPU-only and uses `nice + timeout` so it does not alter firewall rules, network shaping, SSH settings, or proxy services.
+
+## Event Classification
+
+Analysis exports include a lightweight heuristic classifier for operational events. It maps event title/body evidence into categories such as `resource_pressure`, `network_traffic`, `reachability`, and `recovery`, plus a likely cause and confidence score.
+
+This is not a causal model. It is an explainability layer for reports and triage. For example, a bandwidth-down outlier is classified as `network_traffic` with likely causes such as backup transfer, proxy traffic, package download, or other ingress spikes.
 
 ## Limitations
 

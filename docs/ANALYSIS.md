@@ -15,6 +15,7 @@ The command writes `analysis-output/` with:
 - `nodes.csv`: node metadata, map location source, status, and score.
 - `metrics.csv`: raw metric time series for the selected lookback window.
 - `events.csv`: status-change and anomaly events used as weak labels.
+- `event_classifications.csv`: heuristic event category, likely cause, confidence, and evidence.
 - `connection_sources.csv`: persisted ingress source summaries.
 - `analytics.json`: full robust-statistics, fleet radar, and evaluation payload.
 - `report.md`: compact human-readable analysis summary.
@@ -61,6 +62,8 @@ If `experiments.jsonl` is available, pass it to the analysis CLI:
   -experiments ./analysis-output/experiments.jsonl
 ```
 
-This adds `experiment_evaluation.csv` and a `ground_truth` section in `analytics.json` with detection delay, recovery delay, detection rate, recovery rate, and false-positive event count outside labelled experiment windows.
+This adds `experiment_evaluation.csv` and a `ground_truth` section in `analytics.json` with detection delay, recovery delay, detection rate, recovery rate, observation node-hours, steady-state node-hours, false-positive event count, and false-positive rate per node-hour outside labelled experiment windows.
+
+False-positive rate is normalized by steady-state node-hours. StarNexus excludes each labelled experiment window plus the 300-second detection grace window before calculating the denominator. This makes results more comparable across different lookback windows and fleet sizes than a raw event count.
 
 The dashboard reads the server-side `experiment_labels_path` and shows the same ground-truth metrics in Experiment View. The default fault-injection wrapper appends labels to the server path automatically.
