@@ -18,10 +18,25 @@ func Open(dbPath, schemaPath string) (*DB, error) {
 		return nil, err
 	}
 
-	// Enable WAL mode for better concurrency
-	if _, err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		conn.Close()
-		return nil, err
+	// SQLite serializes writes at the database file level. Routing every
+	// query through a single pooled connection avoids SQLITE_BUSY storms
+	// under concurrent /api/report bursts. Throughput is bounded by the
+	// WAL-mode single-writer anyway, so pooling would only add contention.
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
+	conn.SetConnMaxIdleTime(10 * time.Minute)
+
+	// Durability tuning applied before schema so CREATE statements run
+	// under WAL with the same lock-wait budget as steady-state queries.
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA busy_timeout=5000",
+		"PRAGMA synchronous=NORMAL",
+	} {
+		if _, err := conn.Exec(pragma); err != nil {
+			conn.Close()
+			return nil, err
+		}
 	}
 
 	// Run schema

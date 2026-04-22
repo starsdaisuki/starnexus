@@ -1,8 +1,22 @@
 # StarNexus Method
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
 This document describes the technical method behind StarNexus as a self-hosted VPS observability and reliability-analysis system.
+
+## Problem Statement
+
+Small self-hosted VPS fleets — typically operated by a single owner
+running a handful of machines across providers — sit in a gap between
+two ends of the monitoring spectrum. At one end, classic infrastructure
+monitoring (Nagios, Zabbix) uses static thresholds that miss statistical
+regime changes and generate high false-positive rates when traffic is
+naturally bursty. At the other end, hosted observability platforms
+(Datadog, Grafana Cloud, New Relic) offer rich statistics but are
+expensive, opaque, and require trusting a third party with every
+metric. StarNexus is an attempt to occupy the middle: a lightweight,
+self-hosted, statistically principled monitoring platform that can be
+defended methodologically — not just "it looked green on the dashboard."
 
 ## System Model
 
@@ -127,14 +141,71 @@ Analysis exports include a lightweight heuristic classifier for operational even
 
 This is not a causal model. It is an explainability layer for reports and triage. For example, a bandwidth-down outlier is classified as `network_traffic` with likely causes such as backup transfer, proxy traffic, package download, or other ingress spikes.
 
+## Detector Benchmark
+
+StarNexus runs its production detector (robust z-score plus baseline
+shift, multi-gate policy) alongside three textbook baselines
+(fixed-threshold à la Nagios, plain-mean-and-stddev z-score, and
+exponentially-weighted moving average) and a simple multivariate
+Mahalanobis composite. All five replay the same metric history and are
+scored against the same labelled experiments. Results are written to
+`analysis-output/bench/` by `starnexus-bench` (or `make bench`).
+
+The benchmark exists to give an honest, apples-to-apples comparison
+instead of asserting a priori that "robust statistics are better."
+Findings are documented in `docs/RESULTS.md` with 95 % bootstrap
+confidence intervals on detection and recovery delays; see
+`docs/LIMITATIONS.md` for caveats about sample size.
+
+## Related Work
+
+**Nagios / Zabbix / Prometheus Alertmanager.** Threshold-based
+monitoring is the operational default. It is transparent and easy to
+reason about, but it does not adapt to the node's own baseline, which
+leads to either over-tight alerts on noisy nodes or late alerts on
+quiet ones. The `fixed_threshold` detector in the StarNexus benchmark
+is a minimal analogue and illustrates this tradeoff directly.
+
+**Datadog / Grafana Cloud / New Relic.** Commercial observability
+platforms implement adaptive thresholds, anomaly detection, and
+correlation across metrics. They are well-engineered but hosted,
+proprietary, and priced per-host. StarNexus deliberately limits scope
+to a self-hosted single-owner fleet so the full pipeline — ingestion,
+storage, detection, scoring, alerting — can be inspected and modified.
+
+**Robust statistics for anomaly detection.** The use of median / MAD
+for location and scale is a standard move in industrial process control
+and outlier detection literature (e.g. the Huber and Rousseeuw family
+of robust estimators). StarNexus uses the modified z-score
+`0.6745·(x − median) / MAD` and gates it with minimum absolute value
+and baseline-shift requirements, both of which are common in
+practitioner literature for reducing false positives on skewed
+distributions.
+
+**Multivariate anomaly detection.** Full-covariance Mahalanobis
+distance with Minimum Covariance Determinant (MCD) estimators is the
+classical technique for multivariate robust outliers. StarNexus
+currently uses only a diagonal approximation (`mahalanobis` detector in
+the benchmark) to avoid the iterative trimming step; proper MCD and
+full-covariance handling remain future work, flagged in
+`docs/LIMITATIONS.md`.
+
+**Changepoint detection.** CUSUM and Bayesian online changepoint
+detection (Adams & MacKay 2007) are the rigorous alternatives to the
+recent-vs-baseline heuristic used here. They are strictly more
+principled for detecting regime shifts but are also more expensive and
+introduce their own tuning burden. StarNexus currently favours the
+simpler rolling-window comparison to keep the analytics layer
+interpretable.
+
 ## Limitations
 
-Current limitations:
+`docs/LIMITATIONS.md` is the authoritative list. Headline items:
 
-- The labelled experiment dataset is still small.
-- CPU experiments are tested on LisaHost only.
-- False positives are event-based and include historical anomaly events in the dashboard window.
-- The reliability score is an interpretable heuristic, not yet a fitted statistical model.
-- Network-loss and memory-pressure experiments are not implemented yet because they are riskier on live VPS nodes.
-
-These limitations are acceptable for the current operational system, but they should be addressed before presenting the project as a mature statistical evaluation.
+- CPU-only fault injection; memory/network experiments are deferred
+  because rollback safety on live VPS nodes is hard to guarantee.
+- Current labelled dataset is small; bootstrap intervals on detection
+  delay are wide, and the reliability score is interpretable but not
+  yet validated against held-out incidents.
+- SQLite write serialization caps ingestion at ≈1000 reports/sec per
+  control-plane instance on commodity hardware.

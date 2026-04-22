@@ -1,6 +1,6 @@
 # StarNexus Roadmap
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
 StarNexus is now a working self-hosted VPS observability platform. The next work should focus on reliability depth, evaluation quality, and operational usefulness rather than adding disconnected dashboard widgets.
 
@@ -113,3 +113,37 @@ Needed work:
 ## Near-Term Priority
 
 The highest-value remaining work is productization and richer analysis: dry-run onboarding, more repeated labelled experiments, root-cause classification, and exportable statistical figures.
+
+## Recent Completions (2026-04-22 sprint)
+
+The following items moved from pending to done in this sprint and
+should be treated as baseline from now on:
+
+- **Detector benchmark** (`starnexus-bench` / `make bench`): offline
+  replay of fixed-threshold, plain z-score, EWMA, multivariate
+  Mahalanobis, and robust-shift detectors against the same
+  ground-truth labels, with bootstrap 95% CIs.
+- **Statistical figures** (`scripts/generate-figures.py`,
+  `make figures`): matplotlib exports for CPU time series, benchmark
+  head-to-head, detection-delay distribution, FP/detection tradeoff,
+  and event timeline.
+- **Expanded experiment matrix** (`scripts/fault-injection-matrix.sh`):
+  3 reps × 4 durations on a labelled test node, ≈70 min wall time.
+- **Prometheus `/metrics` endpoint**: HTTP request counters and
+  summaries, node-status gauges, incident-state gauges, served on the
+  same private port.
+- **End-to-end integration test** (`server/integration_test.go`):
+  starts a real server on an ephemeral port and asserts the full
+  report → incident → metrics pipeline.
+- **Scalability benchmark** (`scripts/loadtest-local.sh`, 
+  `starnexus-loadtest`): simulates 10–500 virtual agents against an
+  isolated server and writes per-size JSON summaries. See
+  `docs/RESULTS.md` for headline numbers.
+- **Database concurrency fix**: `SetMaxOpenConns(1)` plus DSN-level
+  busy_timeout pragma removed the SQLITE_BUSY storm that previously
+  surfaced as ~98% HTTP 500 at 100+ agents.
+- **Docker sandbox** (`docker-compose.yml`): reviewer-friendly
+  `docker compose up --build` that boots a server plus three agents
+  with synthetic node locations.
+- **Method docs**: related-work section in `docs/METHOD.md` plus new
+  `docs/LIMITATIONS.md` enumerating scope boundaries and known gaps.

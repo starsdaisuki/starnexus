@@ -33,6 +33,11 @@ func (s *Server) handleGetVersion(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildinfo.Current("starnexus-server"))
 }
 
+func (s *Server) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
+	s.RefreshMetrics()
+	s.metrics.Handler().ServeHTTP(w, r)
+}
+
 func (s *Server) handleGetHealth(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().Unix()
 	dbHealth, err := s.db.HealthCheck()

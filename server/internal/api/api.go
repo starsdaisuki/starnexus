@@ -9,6 +9,7 @@ import (
 
 	"github.com/starsdaisuki/starnexus/server/internal/db"
 	"github.com/starsdaisuki/starnexus/server/internal/locations"
+	"github.com/starsdaisuki/starnexus/server/internal/metrics"
 )
 
 // ReportGenerator generates on-demand daily reports.
@@ -27,10 +28,13 @@ type Server struct {
 	connStore            *ConnStore
 	nodeLocations        *locations.Store
 	mux                  *http.ServeMux
+	metrics              *metrics.Registry
+	instrumented         http.Handler
 	startedAt            int64
 }
 
 func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath, experimentLabelsPath string, nodeLocations *locations.Store) *Server {
+	registry := metrics.New()
 	s := &Server{
 		db:                   database,
 		token:                token,
@@ -41,10 +45,20 @@ func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath, experimen
 		connStore:            NewConnStore(),
 		nodeLocations:        nodeLocations,
 		mux:                  http.NewServeMux(),
+		metrics:              registry,
 		startedAt:            time.Now().Unix(),
 	}
+	s.registerMetrics()
 	s.routes()
+	s.instrumented = registry.HTTPMiddleware(s.mux)
 	return s
+}
+
+// Metrics returns the registry so external callers (analytics scheduler,
+// anomaly detector) can record their own metrics. Unexported types are
+// kept within the metrics package; this keeps the API surface narrow.
+func (s *Server) Metrics() *metrics.Registry {
+	return s.metrics
 }
 
 // SetReportGenerator sets the report generator (called after analytics scheduler is created).
@@ -53,7 +67,41 @@ func (s *Server) SetReportGenerator(rg ReportGenerator) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.instrumented.ServeHTTP(w, r)
+}
+
+func (s *Server) registerMetrics() {
+	s.metrics.RegisterGauge("starnexus_uptime_seconds", "Seconds since the server process started.")
+	s.metrics.RegisterGauge("starnexus_nodes_total", "Total registered nodes, labelled by status.")
+	s.metrics.RegisterGauge("starnexus_active_incidents", "Active incidents grouped by lifecycle state.")
+	s.metrics.RegisterGauge("starnexus_database_rows", "Row counts for key tables.")
+	s.metrics.RegisterCounter("starnexus_anomaly_detection_runs_total", "Anomaly detection scheduler passes.")
+	s.metrics.RegisterSummary("starnexus_anomaly_detection_seconds", "Anomaly detection runtime in seconds.")
+}
+
+// RefreshMetrics updates gauges that derive from current DB state. The
+// analytics scheduler calls this periodically; handlers can also call
+// it opportunistically without incurring noticeable overhead.
+func (s *Server) RefreshMetrics() {
+	s.metrics.SetGauge("starnexus_uptime_seconds", nil, float64(time.Now().Unix()-s.startedAt))
+	if counts, err := s.db.GetStatusCounts(); err == nil && counts != nil {
+		s.metrics.SetGauge("starnexus_nodes_total", map[string]string{"status": "online"}, float64(counts.Online))
+		s.metrics.SetGauge("starnexus_nodes_total", map[string]string{"status": "degraded"}, float64(counts.Degraded))
+		s.metrics.SetGauge("starnexus_nodes_total", map[string]string{"status": "offline"}, float64(counts.Offline))
+		s.metrics.SetGauge("starnexus_nodes_total", map[string]string{"status": "unknown"}, float64(counts.Unknown))
+	}
+	if active, err := s.db.GetActiveIncidents(500); err == nil {
+		byState := map[string]int{"open": 0, "acknowledged": 0, "suppressed": 0}
+		for _, incident := range active {
+			byState[incident.Status]++
+		}
+		for state, count := range byState {
+			s.metrics.SetGauge("starnexus_active_incidents", map[string]string{"state": state}, float64(count))
+		}
+	}
+	if nodes, err := s.db.GetAllNodes(); err == nil {
+		s.metrics.SetGauge("starnexus_database_rows", map[string]string{"table": "nodes"}, float64(len(nodes)))
+	}
 }
 
 func (s *Server) routes() {
@@ -80,6 +128,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/incidents/{id}/suppress", s.requireAuth(s.handleSuppressIncident))
 	s.mux.HandleFunc("POST /api/connections", s.requireAuth(s.handlePostConnections))
 	s.mux.HandleFunc("GET /api/connections", s.handleGetConnections)
+
+	// Metrics (Prometheus text format, no auth — only exposed on the
+	// private bind address so the SSH tunnel is the only access path).
+	s.mux.HandleFunc("GET /metrics", s.handleGetMetrics)
 
 	// Downloads (no auth)
 	s.mux.HandleFunc("GET /download/agent", s.handleDownloadAgent)

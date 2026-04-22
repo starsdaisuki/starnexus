@@ -101,6 +101,8 @@ The repo's single frontend source of truth lives under [`web/public/`](web/publi
 - **Node scoring** (daily): availability 40% + latency 30% + stability 30%
 - **AI daily report** (09:00 UTC+8): metrics summary + Mistral AI analysis → Telegram
 - **Research export**: `make analyze` writes CSV/JSON/Markdown datasets for statistical evaluation and reporting
+- **Detector benchmark**: `make bench` replays the same metric history through five detectors (fixed threshold, plain z-score, EWMA, multivariate Mahalanobis, robust-shift production surrogate) and scores each against the ground-truth labels with bootstrap 95% CIs.
+- **Self-observability**: the server exposes Prometheus-format metrics at `/metrics` (HTTP request counters, latency summaries, node status gauges, active incident counts).
 
 ### Deployment
 - One-liner agent install: `curl -sSL http://<server>:8900/install.sh | bash -s -- --server ... --token ... --node-id ...`
@@ -165,9 +167,24 @@ Run `make export-analysis` to create a consistent production DB backup, fetch ex
 
 Run `make analyze` only when analyzing a local `server/starnexus.db` copy directly. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for how to interpret the proxy evaluation and extend it with controlled fault injection.
 
-CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file.
+CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file. To build a repeated-trial matrix (3 reps × 4 durations, ≈70 min wall-time), run `scripts/fault-injection-matrix.sh`.
 
-For the current project status, recent upgrade summary, level assessment, method, results, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md), [`docs/METHOD.md`](docs/METHOD.md), [`docs/RESULTS.md`](docs/RESULTS.md), and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Generate visual figures from the exported CSVs with `uv run scripts/generate-figures.py` — it emits CPU time-series with experiment shading, benchmark head-to-head bars, detection-delay boxplots, and a false-positive / detection tradeoff scatter into `analysis-output/figures/`.
+
+Run the local scalability benchmark with `scripts/loadtest-local.sh`: it boots an isolated server on a temp DB and fires 10 / 50 / 100 / 250 / 500 virtual agents at `/api/report`, writing per-size JSON summaries to `analysis-output/loadtest/`. See [`docs/RESULTS.md`](docs/RESULTS.md) for headline numbers.
+
+## Sandbox (Docker)
+
+For a reviewer-friendly one-command demo:
+
+```bash
+docker compose up --build
+open http://localhost:8900   # or visit in any browser
+```
+
+This spins up a server and three containerized agents with synthetic node locations. The sandbox uses a static API token and an ephemeral volume — see [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the scope of this mode.
+
+For the current project status, recent upgrade summary, level assessment, method, results, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md), [`docs/METHOD.md`](docs/METHOD.md), [`docs/RESULTS.md`](docs/RESULTS.md), [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md), and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Configuration is validated at startup; see [`docs/CONFIG.md`](docs/CONFIG.md) for required fields and `--check-config` usage.
 

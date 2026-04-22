@@ -1,6 +1,8 @@
 # StarNexus Project Status
 
-This document summarizes the current state of StarNexus after the observability, analytics, deployment, and Telegram bot upgrades.
+Last updated: 2026-04-22
+
+This document summarizes the current state of StarNexus after the observability, analytics, deployment, Telegram bot, and benchmark/scalability upgrades.
 
 ## Current Position
 
@@ -363,3 +365,46 @@ StarNexus is in a good state. The next improvement should not be another random 
 - More robust onboarding.
 
 That path makes the project both more useful day to day and easier to defend as a serious technical project.
+
+## 2026-04-22 Sprint Additions
+
+This sprint added the quantitative validation layer that was previously
+missing:
+
+- **Baseline detector comparison.** `starnexus-bench` replays five
+  detectors (fixed threshold, plain z-score, EWMA, multivariate
+  Mahalanobis, robust-shift production surrogate) through the same
+  metric history and scores each against the same ground-truth
+  experiments. Results with 95% bootstrap CIs are in
+  `docs/RESULTS.md`.
+- **Statistical figures** generated from exported CSVs via
+  `scripts/generate-figures.py` (`make figures`). CPU time series,
+  head-to-head bars, detection-delay distributions, and a
+  FP-vs-detection tradeoff plot.
+- **Expanded experiment matrix** (`scripts/fault-injection-matrix.sh`)
+  for 3 reps × 4 durations on `jp-lisahost`, raising the labelled
+  dataset to n≈15 and tightening the delay confidence intervals.
+- **Scalability benchmark** (`scripts/loadtest-local.sh` +
+  `starnexus-loadtest`) measuring single-instance capacity: zero
+  errors up to 500 virtual agents at 1000 reports/sec with
+  p99=109 ms. Uncovered and fixed a SQLite concurrency issue
+  (`SetMaxOpenConns(1)` plus DSN-level busy_timeout pragma).
+- **Self-observability** via Prometheus `/metrics` endpoint exposing
+  HTTP request counters and summaries, node-status gauges, and
+  incident-state gauges.
+- **End-to-end integration test** in `server/integration_test.go` that
+  boots a real server, posts reports, asserts the full incident and
+  metrics pipeline.
+- **Docker sandbox** (`docker-compose.yml`) for one-command reviewer
+  setup.
+- **Documentation**: method-level related-work section
+  (`docs/METHOD.md`), full scope-and-limitations document
+  (`docs/LIMITATIONS.md`), and a substantively expanded
+  `docs/RESULTS.md` with the benchmark table, scalability numbers,
+  and figure index.
+
+The combined effect is to move the project from "uses robust
+statistics" to "has empirical evidence that the production detector
+outperforms each textbook baseline on the same data, with stated
+scope boundaries and reproducible benchmarks." That is the
+validation layer a serious statistics + CS evaluation needs.

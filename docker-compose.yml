@@ -1,0 +1,138 @@
+# Reproducible StarNexus sandbox. Spins up a server and three fake
+# agents reporting from their own container metrics so reviewers can
+# verify the full pipeline in one command:
+#
+#   docker compose up --build
+#   open http://localhost:8900
+#
+# The API token below is only used for this sandbox. Do not reuse it in
+# production.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      TZ: UTC
+    configs:
+      - source: server_config
+        target: /app/config.yaml
+    volumes:
+      - server_data:/app/data
+    ports:
+      - "8900:8900"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8900/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+
+  agent-tokyo:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      TZ: UTC
+    configs:
+      - source: agent_tokyo_config
+        target: /app/config.yaml
+
+  agent-singapore:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      TZ: UTC
+    configs:
+      - source: agent_singapore_config
+        target: /app/config.yaml
+
+  agent-frankfurt:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      TZ: UTC
+    configs:
+      - source: agent_frankfurt_config
+        target: /app/config.yaml
+
+volumes:
+  server_data:
+
+configs:
+  server_config:
+    content: |
+      port: 8900
+      db_path: "/app/data/starnexus.db"
+      api_token: "sandbox-token-change-me"
+      web_dir: "/app/web/public"
+      node_locations_path: ""
+      experiment_labels_path: ""
+      agent_binary_path: ""
+      geoip_db_path: ""
+      offline_threshold_seconds: 90
+      bot_token: ""
+      bot_chat_ids: []
+      mistral_api_key: ""
+  agent_tokyo_config:
+    content: |
+      server_url: "http://server:8900"
+      api_token: "sandbox-token-change-me"
+      node_id: "tokyo-demo"
+      node_name: "Tokyo Demo"
+      provider: "Sandbox"
+      latitude: 35.6762
+      longitude: 139.6503
+      report_interval_seconds: 30
+      queue_path: "/tmp/agent-queue.jsonl"
+      queue_max_reports: 2880
+      queue_flush_batch_size: 120
+      geoip_db_path: ""
+      connection_report_interval_seconds: 0
+      probe_targets: []
+      port_labels: {}
+  agent_singapore_config:
+    content: |
+      server_url: "http://server:8900"
+      api_token: "sandbox-token-change-me"
+      node_id: "singapore-demo"
+      node_name: "Singapore Demo"
+      provider: "Sandbox"
+      latitude: 1.3521
+      longitude: 103.8198
+      report_interval_seconds: 30
+      queue_path: "/tmp/agent-queue.jsonl"
+      queue_max_reports: 2880
+      queue_flush_batch_size: 120
+      geoip_db_path: ""
+      connection_report_interval_seconds: 0
+      probe_targets: []
+      port_labels: {}
+  agent_frankfurt_config:
+    content: |
+      server_url: "http://server:8900"
+      api_token: "sandbox-token-change-me"
+      node_id: "frankfurt-demo"
+      node_name: "Frankfurt Demo"
+      provider: "Sandbox"
+      latitude: 50.1109
+      longitude: 8.6821
+      report_interval_seconds: 30
+      queue_path: "/tmp/agent-queue.jsonl"
+      queue_max_reports: 2880
+      queue_flush_batch_size: 120
+      geoip_db_path: ""
+      connection_report_interval_seconds: 0
+      probe_targets: []
+      port_labels: {}
