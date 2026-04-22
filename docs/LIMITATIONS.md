@@ -49,15 +49,19 @@ explicitly out of scope:
   with the status-threshold path (`cpu > 80` or `memory > 90`), which
   fires on the next 30 s report. The baseline comparison in
   `analysis-output/bench/` documents this division of labour explicitly.
-- **Per-metric gates are independent.** `anomaly.policyForMetric` treats
-  CPU, memory, bandwidth, and connections independently. The Mahalanobis
-  detector in the benchmark offers a multivariate alternative but uses
-  only a diagonal covariance approximation; correlated-metric anomalies
-  are still handled heuristically.
-- **No changepoint detection.** Baseline-shift analysis uses a simple
-  recent-versus-baseline median comparison. This is a pragmatic
-  approximation, not a CUSUM or Bayesian changepoint test; it is cheap
-  but can miss multi-step regime changes.
+- **Production path uses per-metric gates.** `anomaly.policyForMetric`
+  treats CPU, memory, bandwidth, and connections independently in the
+  live anomaly scheduler. Cross-metric correlation is handled only by
+  the `mcd_mahalanobis` detector, which is currently a benchmark-only
+  surrogate; it is not yet wired into the live scheduler. The upgrade
+  is gated on the same longitudinal data pipeline needed for
+  reliability-score validation.
+- **No changepoint detection in the live path.** The production
+  baseline-shift analysis uses a recent-versus-baseline median
+  comparison. A proper CUSUM-based changepoint alternative
+  (`cusum` detector) is now part of the benchmark catalogue for
+  evaluation but is not the default on-call detector. Adopting it live
+  would require calibrating K/H against a longer false-positive study.
 - **Reliability score is a heuristic, not a fitted model.** Weights
   (availability 40%, latency 30%, stability 30%) were chosen for
   interpretability. The current evaluation dataset (n=3 nodes, ≈7 days)
@@ -143,8 +147,9 @@ evaluation without changing the core architecture:
 
 - Expand the fault-injection matrix to memory and network-latency
   experiments on an isolated test node.
-- Replace the heuristic baseline-shift detector with CUSUM or Bayesian
-  online changepoint.
+- Promote the `mcd_mahalanobis` and `cusum` detectors from benchmark-only
+  to live-scheduler integration after a longer false-positive study
+  calibrates their thresholds against non-labelled fleet traffic.
 - Run a longitudinal reliability-score validation once at least a month
   of data exists on ≥5 nodes.
 - Train a lightweight classifier on the event-classification task using

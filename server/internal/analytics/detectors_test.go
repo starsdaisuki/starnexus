@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"math"
 	"testing"
 
 	"github.com/starsdaisuki/starnexus/server/internal/db"
@@ -102,6 +103,102 @@ func TestRobustShiftDetectorIgnoresShortBurst(t *testing.T) {
 			if event.Timestamp >= spikeStart && event.Timestamp <= spikeStart+300 {
 				return
 			}
+		}
+	}
+}
+
+func TestMCDMahalanobisFiresOnMultivariateSpike(t *testing.T) {
+	spikeStart := int64(7_000_000)
+	points := buildSyntheticSeries(spikeStart-7200, 300, spikeStart, spikeStart+180, 10, 95)
+	// Lift memory to also break out of its baseline so the full-covariance
+	// variant has a genuine multivariate signal to score against.
+	for i := range points {
+		if points[i].Timestamp >= spikeStart && points[i].Timestamp <= spikeStart+180 {
+			points[i].MemoryPercent = 90
+		}
+	}
+	detector := NewMCDMahalanobisDetector()
+	events := detector.Process("node-a", points)
+	fired := false
+	for _, event := range events {
+		if event.Type == "anomaly" && event.Timestamp >= spikeStart && event.Timestamp <= spikeStart+300 {
+			fired = true
+		}
+	}
+	if !fired {
+		t.Fatalf("expected MCD Mahalanobis to fire on multivariate spike, got %d events", len(events))
+	}
+}
+
+func TestInvertMatrixRoundTrip(t *testing.T) {
+	a := [][]float64{
+		{4, 1, 0, 0},
+		{1, 4, 1, 0},
+		{0, 1, 4, 1},
+		{0, 0, 1, 4},
+	}
+	inv, ok := invertMatrix(a)
+	if !ok {
+		t.Fatal("expected tridiagonal matrix to invert cleanly")
+	}
+	// A · A⁻¹ should be identity within round-off.
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			var sum float64
+			for k := 0; k < 4; k++ {
+				sum += a[i][k] * inv[k][j]
+			}
+			expected := 0.0
+			if i == j {
+				expected = 1.0
+			}
+			if math.Abs(sum-expected) > 1e-9 {
+				t.Fatalf("A·A⁻¹[%d][%d]=%v want %v", i, j, sum, expected)
+			}
+		}
+	}
+}
+
+func TestInvertMatrixSingular(t *testing.T) {
+	a := [][]float64{
+		{1, 2, 3, 4},
+		{2, 4, 6, 8},
+		{0, 1, 0, 1},
+		{1, 0, 1, 0},
+	}
+	if _, ok := invertMatrix(a); ok {
+		t.Fatal("expected rank-deficient matrix to be flagged singular")
+	}
+}
+
+func TestCUSUMDetectorFiresOnSustainedShift(t *testing.T) {
+	spikeStart := int64(8_000_000)
+	// Long enough shift that S_t integrates past H=5.
+	points := buildSyntheticSeries(spikeStart-7200, 500, spikeStart, spikeStart+600, 20, 70)
+	detector := NewCUSUMDetector()
+	events := detector.Process("node-a", points)
+	fired := false
+	for _, event := range events {
+		if event.Type == "anomaly" && event.Timestamp >= spikeStart && event.Timestamp <= spikeStart+900 {
+			fired = true
+		}
+	}
+	if !fired {
+		t.Fatalf("expected CUSUM to fire on sustained shift, got %d events", len(events))
+	}
+}
+
+func TestCUSUMDetectorStableOnStationaryBaseline(t *testing.T) {
+	// A 1.5 h run of steady baseline with the buildSyntheticSeries jitter
+	// should not produce any anomaly events. This is the ARL₀ sanity check:
+	// K=0.5 H=5 CUSUM should rarely false-fire on calm input.
+	start := int64(10_000_000)
+	points := buildSyntheticSeries(start, 300, start-10, start-5, 20, 20)
+	detector := NewCUSUMDetector()
+	events := detector.Process("node-a", points)
+	for _, event := range events {
+		if event.Type == "anomaly" {
+			t.Fatalf("CUSUM false-fired on stationary baseline at %d", event.Timestamp)
 		}
 	}
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": 1776847036,
+  "generated_at": 1776853376,
   "window_hours": 168,
   "experiments": 15,
   "nodes": [
@@ -7,6 +7,7 @@
     "jp-lisahost",
     "tokyo-sonet"
   ],
+  "bootstrap_seed": 42,
   "detectors": [
     {
       "name": "fixed_threshold",
@@ -23,15 +24,15 @@
         "anomaly_detection_count": 13,
         "mean_detection_delay_seconds": 74.61538461538461,
         "mean_recovery_delay_seconds": 130.26666666666668,
-        "observation_node_hours": 503.8077777777778,
+        "observation_node_hours": 503.9577777777778,
         "experiment_node_hours": 0.5333333333333333,
-        "steady_state_node_hours": 502.28972222222217,
+        "steady_state_node_hours": 502.3794444444444,
         "false_positive_event_count": 8,
         "false_positive_status_count": 4,
         "false_positive_anomaly_count": 4,
-        "false_positive_events_per_node_hour": 0.015927062900284974,
-        "false_positive_status_per_node_hour": 0.007963531450142487,
-        "false_positive_anomaly_per_node_hour": 0.007963531450142487,
+        "false_positive_events_per_node_hour": 0.01592421841392573,
+        "false_positive_status_per_node_hour": 0.007962109206962865,
+        "false_positive_anomaly_per_node_hour": 0.007962109206962865,
         "detection_rate_percent": 86.66666666666667,
         "recovery_rate_percent": 100,
         "experiments": [
@@ -358,26 +359,194 @@
       "bootstrap": {
         "detection_delay_mean_seconds": 74.61538461538461,
         "detection_delay_ci95_seconds": [
-          52.53846153846154,
-          113.61538461538461
+          52.46153846153846,
+          114.15384615384616
         ],
         "detection_delay_sd_seconds": 68.73565118328148,
         "recovery_delay_mean_seconds": 130.26666666666668,
         "recovery_delay_ci95_seconds": [
-          24.733333333333334,
-          254
+          24.2,
+          256.06666666666666
         ],
         "recovery_delay_sd_seconds": 242.10932202111468,
         "detection_bootstrap_count": 13,
         "recovery_bootstrap_count": 15
-      }
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776747355,
+          "first_fire_offset_seconds": 57,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776752755,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776786040,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 302,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 45,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843665,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843965,
+          "first_fire_offset_seconds": 63,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844235,
+          "first_fire_offset_seconds": 43,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844625,
+          "first_fire_offset_seconds": 47,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845015,
+          "first_fire_offset_seconds": 54,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845405,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845945,
+          "first_fire_offset_seconds": 56,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776846485,
+          "first_fire_offset_seconds": 53,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU fixed threshold 80 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        }
+      ]
     },
     {
       "name": "plain_zscore",
       "description": "Rolling mean±stddev z-score (|z|≥3, window 100≈50min). Non-robust: long tails inflate stddev and mask real shifts.",
-      "total_events": 286,
-      "firing_events": 143,
-      "recovery_events": 143,
+      "total_events": 290,
+      "firing_events": 145,
+      "recovery_events": 145,
       "ground_truth": {
         "experiment_count": 15,
         "detected_count": 8,
@@ -387,15 +556,15 @@
         "anomaly_detection_count": 8,
         "mean_detection_delay_seconds": 84,
         "mean_recovery_delay_seconds": 205.88888888888889,
-        "observation_node_hours": 503.8077777777778,
+        "observation_node_hours": 503.9577777777778,
         "experiment_node_hours": 0.5333333333333333,
-        "steady_state_node_hours": 502.28972222222217,
-        "false_positive_event_count": 272,
-        "false_positive_status_count": 136,
-        "false_positive_anomaly_count": 136,
-        "false_positive_events_per_node_hour": 0.5415201386096892,
-        "false_positive_status_per_node_hour": 0.2707600693048446,
-        "false_positive_anomaly_per_node_hour": 0.2707600693048446,
+        "steady_state_node_hours": 502.3794444444444,
+        "false_positive_event_count": 276,
+        "false_positive_status_count": 138,
+        "false_positive_anomaly_count": 138,
+        "false_positive_events_per_node_hour": 0.5493855352804377,
+        "false_positive_status_per_node_hour": 0.2746927676402188,
+        "false_positive_anomaly_per_node_hour": 0.2746927676402188,
         "detection_rate_percent": 53.333333333333336,
         "recovery_rate_percent": 60,
         "experiments": [
@@ -665,18 +834,151 @@
         "detection_delay_mean_seconds": 84,
         "detection_delay_ci95_seconds": [
           47.25,
-          148.5
+          147.125
         ],
         "detection_delay_sd_seconds": 88.6969157138108,
         "recovery_delay_mean_seconds": 205.88888888888889,
         "recovery_delay_ci95_seconds": [
-          57.111111111111114,
-          383.8888888888889
+          32.22222222222222,
+          406.77777777777777
         ],
         "recovery_delay_sd_seconds": 294.10093694361314,
         "detection_bootstrap_count": 8,
         "recovery_bootstrap_count": 9
-      }
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776747355,
+          "first_fire_offset_seconds": 57,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776752755,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776786010,
+          "first_fire_offset_seconds": 37,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 302,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 45,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843665,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843965,
+          "first_fire_offset_seconds": 63,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844235,
+          "first_fire_offset_seconds": 43,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU z-score ≥ 3.0 (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        }
+      ]
     },
     {
       "name": "ewma",
@@ -693,15 +995,15 @@
         "anomaly_detection_count": 5,
         "mean_detection_delay_seconds": 101.6,
         "mean_recovery_delay_seconds": 289.1666666666667,
-        "observation_node_hours": 503.8077777777778,
+        "observation_node_hours": 503.9577777777778,
         "experiment_node_hours": 0.5333333333333333,
-        "steady_state_node_hours": 502.28972222222217,
+        "steady_state_node_hours": 502.3794444444444,
         "false_positive_event_count": 340,
         "false_positive_status_count": 170,
         "false_positive_anomaly_count": 170,
-        "false_positive_events_per_node_hour": 0.6769001732621114,
-        "false_positive_status_per_node_hour": 0.3384500866310557,
-        "false_positive_anomaly_per_node_hour": 0.3384500866310557,
+        "false_positive_events_per_node_hour": 0.6767792825918435,
+        "false_positive_status_per_node_hour": 0.33838964129592175,
+        "false_positive_anomaly_per_node_hour": 0.33838964129592175,
         "detection_rate_percent": 33.33333333333333,
         "recovery_rate_percent": 40,
         "experiments": [
@@ -943,20 +1245,132 @@
         "detection_delay_sd_seconds": 112.6090582502136,
         "recovery_delay_mean_seconds": 289.1666666666667,
         "recovery_delay_ci95_seconds": [
-          66.5,
-          552.3333333333334
+          62.5,
+          553.6666666666666
         ],
         "recovery_delay_sd_seconds": 337.0011374857163,
         "detection_bootstrap_count": 5,
         "recovery_bootstrap_count": 6
-      }
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776747355,
+          "first_fire_offset_seconds": 57,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU EWMA deviation ≥ 3.0σ (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776752755,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU EWMA deviation ≥ 3.0σ (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776786010,
+          "first_fire_offset_seconds": 37,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU EWMA deviation ≥ 3.0σ (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 302,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU EWMA deviation ≥ 3.0σ (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 45,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "CPU EWMA deviation ≥ 3.0σ (value 100.00)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        }
+      ]
     },
     {
-      "name": "mahalanobis",
-      "description": "Multivariate robust composite: per-metric robust z gated at 3σ, L2-combined, fires when composite ≥ 4.2σ. Diagonal-covariance approximation.",
-      "total_events": 180,
-      "firing_events": 90,
-      "recovery_events": 90,
+      "name": "cusum",
+      "description": "Page's CUSUM (K=0.5, H=5) on robust-standardised residuals, per metric with OR combiner. Classical changepoint baseline with ARL₀≈930 samples.",
+      "total_events": 546,
+      "firing_events": 274,
+      "recovery_events": 272,
       "ground_truth": {
         "experiment_count": 15,
         "detected_count": 13,
@@ -966,15 +1380,15 @@
         "anomaly_detection_count": 13,
         "mean_detection_delay_seconds": 72.3076923076923,
         "mean_recovery_delay_seconds": 132.26666666666668,
-        "observation_node_hours": 503.8077777777778,
+        "observation_node_hours": 503.9577777777778,
         "experiment_node_hours": 0.5333333333333333,
-        "steady_state_node_hours": 502.28972222222217,
-        "false_positive_event_count": 156,
-        "false_positive_status_count": 78,
-        "false_positive_anomaly_count": 78,
-        "false_positive_events_per_node_hour": 0.310577726555557,
-        "false_positive_status_per_node_hour": 0.1552888632777785,
-        "false_positive_anomaly_per_node_hour": 0.1552888632777785,
+        "steady_state_node_hours": 502.3794444444444,
+        "false_positive_event_count": 522,
+        "false_positive_status_count": 260,
+        "false_positive_anomaly_count": 262,
+        "false_positive_events_per_node_hour": 1.039055251508654,
+        "false_positive_status_per_node_hour": 0.5175370984525862,
+        "false_positive_anomaly_per_node_hour": 0.5215181530560676,
         "detection_rate_percent": 86.66666666666667,
         "recovery_rate_percent": 100,
         "experiments": [
@@ -1301,46 +1715,214 @@
       "bootstrap": {
         "detection_delay_mean_seconds": 72.3076923076923,
         "detection_delay_ci95_seconds": [
-          49.69230769230769,
-          111.76923076923077
+          49.76923076923077,
+          112.3076923076923
         ],
         "detection_delay_sd_seconds": 69.51185104640385,
         "recovery_delay_mean_seconds": 132.26666666666668,
         "recovery_delay_ci95_seconds": [
-          26.933333333333334,
-          256
+          26.333333333333332,
+          257.6666666666667
         ],
         "recovery_delay_sd_seconds": 241.14028716752847,
         "detection_bootstrap_count": 13,
         "recovery_bootstrap_count": 15
-      }
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776747355,
+          "first_fire_offset_seconds": 57,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 68.12356670713599,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776752755,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 67.44907594765941,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776786010,
+          "first_fire_offset_seconds": 37,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 67.44907594765945,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 302,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 134.2236611358426,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 45,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 134.2236611358426,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843665,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.5022258195063,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843965,
+          "first_fire_offset_seconds": 63,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 134.2236611358426,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844235,
+          "first_fire_offset_seconds": 43,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 131.82067999018804,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844625,
+          "first_fire_offset_seconds": 47,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.50222581950615,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845015,
+          "first_fire_offset_seconds": 54,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.50222581950615,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845405,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.50222581950615,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845945,
+          "first_fire_offset_seconds": 56,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.50222581950615,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776846485,
+          "first_fire_offset_seconds": 53,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 65.904440620614,
+          "first_fire_detail": "CUSUM crossed H=5.0 on 1 metric(s); K=0.50",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        }
+      ]
     },
     {
-      "name": "robust_shift",
-      "description": "Robust z-score (median/MAD) with baseline-shift and multi-gate policy on a 24h rolling window, scanned every 5 min. Production surrogate.",
-      "total_events": 59,
-      "firing_events": 30,
-      "recovery_events": 29,
+      "name": "mahalanobis",
+      "description": "Multivariate robust composite: per-metric robust z gated at 3σ, L2-combined, fires when composite ≥ 4.2σ. Diagonal-covariance approximation.",
+      "total_events": 190,
+      "firing_events": 95,
+      "recovery_events": 95,
       "ground_truth": {
         "experiment_count": 15,
-        "detected_count": 9,
-        "missed_count": 6,
-        "recovered_count": 9,
-        "status_detection_count": 3,
-        "anomaly_detection_count": 6,
-        "mean_detection_delay_seconds": 172.22222222222223,
-        "mean_recovery_delay_seconds": 359,
-        "observation_node_hours": 503.8077777777778,
+        "detected_count": 13,
+        "missed_count": 2,
+        "recovered_count": 15,
+        "status_detection_count": 0,
+        "anomaly_detection_count": 13,
+        "mean_detection_delay_seconds": 72.3076923076923,
+        "mean_recovery_delay_seconds": 132.26666666666668,
+        "observation_node_hours": 503.9577777777778,
         "experiment_node_hours": 0.5333333333333333,
-        "steady_state_node_hours": 502.28972222222217,
-        "false_positive_event_count": 48,
-        "false_positive_status_count": 24,
-        "false_positive_anomaly_count": 24,
-        "false_positive_events_per_node_hour": 0.09556237740170985,
-        "false_positive_status_per_node_hour": 0.047781188700854925,
-        "false_positive_anomaly_per_node_hour": 0.047781188700854925,
-        "detection_rate_percent": 60,
-        "recovery_rate_percent": 60,
+        "steady_state_node_hours": 502.37944444444446,
+        "false_positive_event_count": 166,
+        "false_positive_status_count": 83,
+        "false_positive_anomaly_count": 83,
+        "false_positive_events_per_node_hour": 0.33042753208895886,
+        "false_positive_status_per_node_hour": 0.16521376604447943,
+        "false_positive_anomaly_per_node_hour": 0.16521376604447943,
+        "detection_rate_percent": 86.66666666666667,
+        "recovery_rate_percent": 100,
         "experiments": [
           {
             "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
@@ -1352,15 +1934,1070 @@
             "detected": true,
             "detection_type": "anomaly",
             "detection_severity": "warning",
-            "first_detection_at": 1776747445,
-            "detection_delay_seconds": 147,
+            "first_detection_at": 1776747355,
+            "detection_delay_seconds": 57,
             "recovered": true,
-            "first_recovery_at": 1776747745,
-            "recovery_delay_seconds": 297,
+            "first_recovery_at": 1776747475,
+            "recovery_delay_seconds": 27,
             "peak_metric_value": 100,
             "detection_titles": [
               "CPU outlier detected"
             ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776752688,
+            "ended_at": 1776752748,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776752755,
+            "detection_delay_seconds": 67,
+            "recovered": true,
+            "first_recovery_at": 1776752785,
+            "recovery_delay_seconds": 37,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776785973,
+            "ended_at": 1776786063,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776786010,
+            "detection_delay_seconds": 37,
+            "recovered": true,
+            "first_recovery_at": 1776786100,
+            "recovery_delay_seconds": 37,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776842550,
+            "ended_at": 1776842580,
+            "detected": false,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 815,
+            "peak_metric_value": 8.910891089108908
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776842806,
+            "ended_at": 1776842836,
+            "detected": false,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 559,
+            "peak_metric_value": 100
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843063,
+            "ended_at": 1776843093,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843365,
+            "detection_delay_seconds": 302,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 302,
+            "peak_metric_value": 4.0000000000000036,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843320,
+            "ended_at": 1776843380,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843365,
+            "detection_delay_seconds": 45,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 15,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843607,
+            "ended_at": 1776843667,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843665,
+            "detection_delay_seconds": 58,
+            "recovered": true,
+            "first_recovery_at": 1776843695,
+            "recovery_delay_seconds": 28,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843902,
+            "ended_at": 1776843962,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843965,
+            "detection_delay_seconds": 63,
+            "recovered": true,
+            "first_recovery_at": 1776843995,
+            "recovery_delay_seconds": 33,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776844192,
+            "ended_at": 1776844342,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776844235,
+            "detection_delay_seconds": 43,
+            "recovered": true,
+            "first_recovery_at": 1776844355,
+            "recovery_delay_seconds": 13,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776844578,
+            "ended_at": 1776844728,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776844625,
+            "detection_delay_seconds": 47,
+            "recovered": true,
+            "first_recovery_at": 1776844745,
+            "recovery_delay_seconds": 17,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776844961,
+            "ended_at": 1776845111,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776845015,
+            "detection_delay_seconds": 54,
+            "recovered": true,
+            "first_recovery_at": 1776845135,
+            "recovery_delay_seconds": 24,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776845347,
+            "ended_at": 1776845647,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776845405,
+            "detection_delay_seconds": 58,
+            "recovered": true,
+            "first_recovery_at": 1776845675,
+            "recovery_delay_seconds": 28,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776845889,
+            "ended_at": 1776846189,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776845945,
+            "detection_delay_seconds": 56,
+            "recovered": true,
+            "first_recovery_at": 1776846215,
+            "recovery_delay_seconds": 26,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776846432,
+            "ended_at": 1776846732,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776846485,
+            "detection_delay_seconds": 53,
+            "recovered": true,
+            "first_recovery_at": 1776846755,
+            "recovery_delay_seconds": 23,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          }
+        ]
+      },
+      "detection_delays_seconds": [
+        57,
+        67,
+        37,
+        302,
+        45,
+        58,
+        63,
+        43,
+        47,
+        54,
+        58,
+        56,
+        53
+      ],
+      "recovery_delays_seconds": [
+        27,
+        37,
+        37,
+        815,
+        559,
+        302,
+        15,
+        28,
+        33,
+        13,
+        17,
+        24,
+        28,
+        26,
+        23
+      ],
+      "bootstrap": {
+        "detection_delay_mean_seconds": 72.3076923076923,
+        "detection_delay_ci95_seconds": [
+          49.76923076923077,
+          112.3076923076923
+        ],
+        "detection_delay_sd_seconds": 69.51185104640385,
+        "recovery_delay_mean_seconds": 132.26666666666668,
+        "recovery_delay_ci95_seconds": [
+          26.333333333333332,
+          257.6666666666667
+        ],
+        "recovery_delay_sd_seconds": 241.14028716752847,
+        "detection_bootstrap_count": 13,
+        "recovery_bootstrap_count": 15
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776747355,
+          "first_fire_offset_seconds": 57,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 70.81762418817425,
+          "first_fire_detail": "multivariate composite z=70.82 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776752755,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 67.45000000000033,
+          "first_fire_detail": "multivariate composite z=67.45 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776786010,
+          "first_fire_offset_seconds": 37,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 67.44999999999993,
+          "first_fire_detail": "multivariate composite z=67.45 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 302,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 131.8224859335039,
+          "first_fire_detail": "multivariate composite z=131.82 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 45,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 131.8224859335039,
+          "first_fire_detail": "multivariate composite z=131.82 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843665,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.504,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843965,
+          "first_fire_offset_seconds": 63,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 131.8224859335039,
+          "first_fire_detail": "multivariate composite z=131.82 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844235,
+          "first_fire_offset_seconds": 43,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.504,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844625,
+          "first_fire_offset_seconds": 47,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.504,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845015,
+          "first_fire_offset_seconds": 54,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.504,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845405,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.504,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845945,
+          "first_fire_offset_seconds": 56,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.50399999999988,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776846485,
+          "first_fire_offset_seconds": 53,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 129.50399999999988,
+          "first_fire_detail": "multivariate composite z=129.50 across 1 metric(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        }
+      ]
+    },
+    {
+      "name": "mcd_mahalanobis",
+      "description": "Multivariate Mahalanobis with MCD-style robust full covariance (h=0.75·window, 3-step concentration). Captures cross-metric correlation unlike diagonal variant.",
+      "total_events": 214,
+      "firing_events": 107,
+      "recovery_events": 107,
+      "ground_truth": {
+        "experiment_count": 15,
+        "detected_count": 13,
+        "missed_count": 2,
+        "recovered_count": 15,
+        "status_detection_count": 0,
+        "anomaly_detection_count": 13,
+        "mean_detection_delay_seconds": 72.3076923076923,
+        "mean_recovery_delay_seconds": 132.26666666666668,
+        "observation_node_hours": 503.9577777777778,
+        "experiment_node_hours": 0.5333333333333333,
+        "steady_state_node_hours": 502.3794444444444,
+        "false_positive_event_count": 190,
+        "false_positive_status_count": 95,
+        "false_positive_anomaly_count": 95,
+        "false_positive_events_per_node_hour": 0.37820018733073607,
+        "false_positive_status_per_node_hour": 0.18910009366536804,
+        "false_positive_anomaly_per_node_hour": 0.18910009366536804,
+        "detection_rate_percent": 86.66666666666667,
+        "recovery_rate_percent": 100,
+        "experiments": [
+          {
+            "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776747298,
+            "ended_at": 1776747448,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776747355,
+            "detection_delay_seconds": 57,
+            "recovered": true,
+            "first_recovery_at": 1776747475,
+            "recovery_delay_seconds": 27,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776752688,
+            "ended_at": 1776752748,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776752755,
+            "detection_delay_seconds": 67,
+            "recovered": true,
+            "first_recovery_at": 1776752785,
+            "recovery_delay_seconds": 37,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776785973,
+            "ended_at": 1776786063,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776786010,
+            "detection_delay_seconds": 37,
+            "recovered": true,
+            "first_recovery_at": 1776786100,
+            "recovery_delay_seconds": 37,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776842550,
+            "ended_at": 1776842580,
+            "detected": false,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 815,
+            "peak_metric_value": 8.910891089108908
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776842806,
+            "ended_at": 1776842836,
+            "detected": false,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 559,
+            "peak_metric_value": 100
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843063,
+            "ended_at": 1776843093,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843365,
+            "detection_delay_seconds": 302,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 302,
+            "peak_metric_value": 4.0000000000000036,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843320,
+            "ended_at": 1776843380,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843365,
+            "detection_delay_seconds": 45,
+            "recovered": true,
+            "first_recovery_at": 1776843395,
+            "recovery_delay_seconds": 15,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843607,
+            "ended_at": 1776843667,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843665,
+            "detection_delay_seconds": 58,
+            "recovered": true,
+            "first_recovery_at": 1776843695,
+            "recovery_delay_seconds": 28,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776843902,
+            "ended_at": 1776843962,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776843965,
+            "detection_delay_seconds": 63,
+            "recovered": true,
+            "first_recovery_at": 1776843995,
+            "recovery_delay_seconds": 33,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776844192,
+            "ended_at": 1776844342,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776844235,
+            "detection_delay_seconds": 43,
+            "recovered": true,
+            "first_recovery_at": 1776844355,
+            "recovery_delay_seconds": 13,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776844578,
+            "ended_at": 1776844728,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776844625,
+            "detection_delay_seconds": 47,
+            "recovered": true,
+            "first_recovery_at": 1776844745,
+            "recovery_delay_seconds": 17,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776844961,
+            "ended_at": 1776845111,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776845015,
+            "detection_delay_seconds": 54,
+            "recovered": true,
+            "first_recovery_at": 1776845135,
+            "recovery_delay_seconds": 24,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776845347,
+            "ended_at": 1776845647,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776845405,
+            "detection_delay_seconds": 58,
+            "recovered": true,
+            "first_recovery_at": 1776845675,
+            "recovery_delay_seconds": 28,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776845889,
+            "ended_at": 1776846189,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776845945,
+            "detection_delay_seconds": 56,
+            "recovered": true,
+            "first_recovery_at": 1776846215,
+            "recovery_delay_seconds": 26,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          },
+          {
+            "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776846432,
+            "ended_at": 1776846732,
+            "detected": true,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776846485,
+            "detection_delay_seconds": 53,
+            "recovered": true,
+            "first_recovery_at": 1776846755,
+            "recovery_delay_seconds": 23,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "CPU outlier detected"
+            ]
+          }
+        ]
+      },
+      "detection_delays_seconds": [
+        57,
+        67,
+        37,
+        302,
+        45,
+        58,
+        63,
+        43,
+        47,
+        54,
+        58,
+        56,
+        53
+      ],
+      "recovery_delays_seconds": [
+        27,
+        37,
+        37,
+        815,
+        559,
+        302,
+        15,
+        28,
+        33,
+        13,
+        17,
+        24,
+        28,
+        26,
+        23
+      ],
+      "bootstrap": {
+        "detection_delay_mean_seconds": 72.3076923076923,
+        "detection_delay_ci95_seconds": [
+          49.76923076923077,
+          112.3076923076923
+        ],
+        "detection_delay_sd_seconds": 69.51185104640385,
+        "recovery_delay_mean_seconds": 132.26666666666668,
+        "recovery_delay_ci95_seconds": [
+          26.333333333333332,
+          257.6666666666667
+        ],
+        "recovery_delay_sd_seconds": 241.14028716752847,
+        "detection_bootstrap_count": 13,
+        "recovery_bootstrap_count": 15
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776747355,
+          "first_fire_offset_seconds": 57,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 128.41201608700928,
+          "first_fire_detail": "MCD Mahalanobis d=128.41 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776752755,
+          "first_fire_offset_seconds": 67,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 118.30576775930737,
+          "first_fire_detail": "MCD Mahalanobis d=118.31 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776786010,
+          "first_fire_offset_seconds": 37,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 176.56157034730933,
+          "first_fire_detail": "MCD Mahalanobis d=176.56 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 302,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 181.3981827261128,
+          "first_fire_detail": "MCD Mahalanobis d=181.40 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843365,
+          "first_fire_offset_seconds": 45,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 181.3981827261128,
+          "first_fire_detail": "MCD Mahalanobis d=181.40 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843665,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 176.91310353426823,
+          "first_fire_detail": "MCD Mahalanobis d=176.91 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776843965,
+          "first_fire_offset_seconds": 63,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 167.5933559508394,
+          "first_fire_detail": "MCD Mahalanobis d=167.59 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844235,
+          "first_fire_offset_seconds": 43,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 171.53846285239177,
+          "first_fire_detail": "MCD Mahalanobis d=171.54 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844625,
+          "first_fire_offset_seconds": 47,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 160.13523810904425,
+          "first_fire_detail": "MCD Mahalanobis d=160.14 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845015,
+          "first_fire_offset_seconds": 54,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 159.8064600976298,
+          "first_fire_detail": "MCD Mahalanobis d=159.81 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845405,
+          "first_fire_offset_seconds": 58,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 160.09581693741293,
+          "first_fire_detail": "MCD Mahalanobis d=160.10 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845945,
+          "first_fire_offset_seconds": 56,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 177.43503075868784,
+          "first_fire_detail": "MCD Mahalanobis d=177.44 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776846485,
+          "first_fire_offset_seconds": 53,
+          "first_fire_metric": "multivariate",
+          "first_fire_score": 182.50259915431616,
+          "first_fire_detail": "MCD Mahalanobis d=182.50 (threshold 4.20) across 1 dimension(s)",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        }
+      ]
+    },
+    {
+      "name": "robust_shift",
+      "description": "Robust z-score (median/MAD) with baseline-shift and multi-gate policy on a 24h rolling window, scanned every 5 min. Production surrogate.",
+      "total_events": 66,
+      "firing_events": 33,
+      "recovery_events": 33,
+      "ground_truth": {
+        "experiment_count": 15,
+        "detected_count": 7,
+        "missed_count": 8,
+        "recovered_count": 7,
+        "status_detection_count": 4,
+        "anomaly_detection_count": 3,
+        "mean_detection_delay_seconds": 181.71428571428572,
+        "mean_recovery_delay_seconds": 301.7142857142857,
+        "observation_node_hours": 503.9577777777778,
+        "experiment_node_hours": 0.5333333333333333,
+        "steady_state_node_hours": 502.3794444444444,
+        "false_positive_event_count": 58,
+        "false_positive_status_count": 29,
+        "false_positive_anomaly_count": 29,
+        "false_positive_events_per_node_hour": 0.11545058350096155,
+        "false_positive_status_per_node_hour": 0.05772529175048077,
+        "false_positive_anomaly_per_node_hour": 0.05772529175048077,
+        "detection_rate_percent": 46.666666666666664,
+        "recovery_rate_percent": 46.666666666666664,
+        "experiments": [
+          {
+            "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+            "node_id": "jp-lisahost",
+            "injection_type": "cpu_stress",
+            "expected_metric": "cpu_percent",
+            "started_at": 1776747298,
+            "ended_at": 1776747448,
+            "detected": false,
+            "recovered": false,
+            "peak_metric_value": 100
           },
           {
             "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
@@ -1394,11 +3031,11 @@
             "detected": true,
             "detection_type": "anomaly",
             "detection_severity": "warning",
-            "first_detection_at": 1776842845,
-            "detection_delay_seconds": 295,
+            "first_detection_at": 1776842605,
+            "detection_delay_seconds": 55,
             "recovered": true,
-            "first_recovery_at": 1776843145,
-            "recovery_delay_seconds": 565,
+            "first_recovery_at": 1776842905,
+            "recovery_delay_seconds": 325,
             "peak_metric_value": 8.910891089108908,
             "detection_titles": [
               "CPU outlier detected"
@@ -1412,16 +3049,16 @@
             "started_at": 1776842806,
             "ended_at": 1776842836,
             "detected": true,
-            "detection_type": "anomaly",
-            "detection_severity": "warning",
-            "first_detection_at": 1776842845,
-            "detection_delay_seconds": 39,
+            "detection_type": "status_change",
+            "detection_severity": "info",
+            "first_detection_at": 1776842905,
+            "detection_delay_seconds": 99,
             "recovered": true,
-            "first_recovery_at": 1776843145,
-            "recovery_delay_seconds": 309,
+            "first_recovery_at": 1776842905,
+            "recovery_delay_seconds": 69,
             "peak_metric_value": 100,
             "detection_titles": [
-              "CPU outlier detected"
+              "Node recovered"
             ]
           },
           {
@@ -1431,18 +3068,9 @@
             "expected_metric": "cpu_percent",
             "started_at": 1776843063,
             "ended_at": 1776843093,
-            "detected": true,
-            "detection_type": "status_change",
-            "detection_severity": "info",
-            "first_detection_at": 1776843145,
-            "detection_delay_seconds": 82,
-            "recovered": true,
-            "first_recovery_at": 1776843145,
-            "recovery_delay_seconds": 52,
-            "peak_metric_value": 4.0000000000000036,
-            "detection_titles": [
-              "Node recovered"
-            ]
+            "detected": false,
+            "recovered": false,
+            "peak_metric_value": 4.0000000000000036
           },
           {
             "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
@@ -1484,18 +3112,9 @@
             "expected_metric": "cpu_percent",
             "started_at": 1776844192,
             "ended_at": 1776844342,
-            "detected": true,
-            "detection_type": "anomaly",
-            "detection_severity": "warning",
-            "first_detection_at": 1776844345,
-            "detection_delay_seconds": 153,
-            "recovered": true,
-            "first_recovery_at": 1776844945,
-            "recovery_delay_seconds": 603,
-            "peak_metric_value": 100,
-            "detection_titles": [
-              "CPU outlier detected"
-            ]
+            "detected": false,
+            "recovered": false,
+            "peak_metric_value": 100
           },
           {
             "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
@@ -1505,16 +3124,16 @@
             "started_at": 1776844578,
             "ended_at": 1776844728,
             "detected": true,
-            "detection_type": "status_change",
-            "detection_severity": "info",
-            "first_detection_at": 1776844945,
-            "detection_delay_seconds": 367,
+            "detection_type": "anomaly",
+            "detection_severity": "warning",
+            "first_detection_at": 1776844705,
+            "detection_delay_seconds": 127,
             "recovered": true,
-            "first_recovery_at": 1776844945,
-            "recovery_delay_seconds": 217,
+            "first_recovery_at": 1776845305,
+            "recovery_delay_seconds": 577,
             "peak_metric_value": 100,
             "detection_titles": [
-              "Node recovered"
+              "CPU outlier detected"
             ]
           },
           {
@@ -1524,11 +3143,18 @@
             "expected_metric": "cpu_percent",
             "started_at": 1776844961,
             "ended_at": 1776845111,
-            "detected": false,
+            "detected": true,
+            "detection_type": "status_change",
+            "detection_severity": "info",
+            "first_detection_at": 1776845305,
+            "detection_delay_seconds": 344,
             "recovered": true,
-            "first_recovery_at": 1776845845,
-            "recovery_delay_seconds": 734,
-            "peak_metric_value": 100
+            "first_recovery_at": 1776845305,
+            "recovery_delay_seconds": 194,
+            "peak_metric_value": 100,
+            "detection_titles": [
+              "Node recovered"
+            ]
           },
           {
             "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
@@ -1540,11 +3166,11 @@
             "detected": true,
             "detection_type": "anomaly",
             "detection_severity": "warning",
-            "first_detection_at": 1776845545,
-            "detection_delay_seconds": 198,
+            "first_detection_at": 1776845605,
+            "detection_delay_seconds": 258,
             "recovered": true,
-            "first_recovery_at": 1776845845,
-            "recovery_delay_seconds": 198,
+            "first_recovery_at": 1776845905,
+            "recovery_delay_seconds": 258,
             "peak_metric_value": 100,
             "detection_titles": [
               "CPU outlier detected"
@@ -1558,16 +3184,16 @@
             "started_at": 1776845889,
             "ended_at": 1776846189,
             "detected": true,
-            "detection_type": "anomaly",
-            "detection_severity": "warning",
-            "first_detection_at": 1776846145,
-            "detection_delay_seconds": 256,
+            "detection_type": "status_change",
+            "detection_severity": "info",
+            "first_detection_at": 1776845905,
+            "detection_delay_seconds": 16,
             "recovered": true,
-            "first_recovery_at": 1776846445,
-            "recovery_delay_seconds": 256,
+            "first_recovery_at": 1776846805,
+            "recovery_delay_seconds": 616,
             "peak_metric_value": 100,
             "detection_titles": [
-              "CPU outlier detected"
+              "Node recovered"
             ]
           },
           {
@@ -1580,9 +3206,11 @@
             "detected": true,
             "detection_type": "status_change",
             "detection_severity": "info",
-            "first_detection_at": 1776846445,
-            "detection_delay_seconds": 13,
-            "recovered": false,
+            "first_detection_at": 1776846805,
+            "detection_delay_seconds": 373,
+            "recovered": true,
+            "first_recovery_at": 1776846805,
+            "recovery_delay_seconds": 73,
             "peak_metric_value": 100,
             "detection_titles": [
               "Node recovered"
@@ -1591,43 +3219,164 @@
         ]
       },
       "detection_delays_seconds": [
-        147,
-        295,
-        39,
-        82,
-        153,
-        367,
-        198,
-        256,
-        13
+        55,
+        99,
+        127,
+        344,
+        258,
+        16,
+        373
       ],
       "recovery_delays_seconds": [
-        297,
-        565,
-        309,
-        52,
-        603,
-        217,
-        734,
-        198,
-        256
+        325,
+        69,
+        577,
+        194,
+        258,
+        616,
+        73
       ],
       "bootstrap": {
-        "detection_delay_mean_seconds": 172.22222222222223,
+        "detection_delay_mean_seconds": 181.71428571428572,
         "detection_delay_ci95_seconds": [
-          99.33333333333333,
-          244.11111111111111
+          85.42857142857143,
+          286.42857142857144
         ],
-        "detection_delay_sd_seconds": 118.8179045617471,
-        "recovery_delay_mean_seconds": 359,
+        "detection_delay_sd_seconds": 142.65309236712943,
+        "recovery_delay_mean_seconds": 301.7142857142857,
         "recovery_delay_ci95_seconds": [
-          228.66666666666666,
-          498.1111111111111
+          159.85714285714286,
+          447.85714285714283
         ],
-        "recovery_delay_sd_seconds": 223.57437241329785,
-        "detection_bootstrap_count": 9,
-        "recovery_bootstrap_count": 9
-      }
+        "recovery_delay_sd_seconds": 221.76542733687043,
+        "detection_bootstrap_count": 7,
+        "recovery_bootstrap_count": 7
+      },
+      "diagnostics": [
+        {
+          "experiment_id": "jp-lisahost-20260421T045458Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T062448Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260421T153933Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072230Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776842605,
+          "first_fire_offset_seconds": 55,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 98.5,
+          "first_fire_detail": "robust z + baseline shift gate fired",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 2
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T072646Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776842905,
+          "first_fire_offset_seconds": 99,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 4.0000000000000036,
+          "first_fire_detail": "CPU returned to baseline",
+          "first_fire_severity": "info",
+          "first_fire_samples_in_window": 3
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073103Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T073520Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074007Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074502Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T074952Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": false
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T075618Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776844705,
+          "first_fire_offset_seconds": 127,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "robust z + baseline shift gate fired",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 4
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080241Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845305,
+          "first_fire_offset_seconds": 344,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 4.0000000000000036,
+          "first_fire_detail": "CPU returned to baseline",
+          "first_fire_severity": "info",
+          "first_fire_samples_in_window": 11
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T080907Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845605,
+          "first_fire_offset_seconds": 258,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 100,
+          "first_fire_detail": "robust z + baseline shift gate fired",
+          "first_fire_severity": "warning",
+          "first_fire_samples_in_window": 8
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T081809Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776845905,
+          "first_fire_offset_seconds": 16,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 3.500000000000003,
+          "first_fire_detail": "CPU returned to baseline",
+          "first_fire_severity": "info"
+        },
+        {
+          "experiment_id": "jp-lisahost-20260422T082712Z-cpu",
+          "node_id": "jp-lisahost",
+          "fired": true,
+          "first_fire_at": 1776846805,
+          "first_fire_offset_seconds": 373,
+          "first_fire_metric": "cpu_percent",
+          "first_fire_score": 3.5175879396984966,
+          "first_fire_detail": "CPU returned to baseline",
+          "first_fire_severity": "info",
+          "first_fire_samples_in_window": 12
+        }
+      ]
     }
   ],
   "labels": [
@@ -1810,6 +3559,260 @@
       "duration_seconds": 300,
       "ssh_host": "lisahost",
       "notes": "CPU-only nice+timeout fault injection"
+    }
+  ],
+  "pairwise_tests": [
+    {
+      "detector_a": "fixed_threshold",
+      "detector_b": "plain_zscore",
+      "experiment_count": 15,
+      "detection_a_only": 5,
+      "detection_b_only": 0,
+      "detection_discordant": 5,
+      "detection_p_value": 0.0625,
+      "delay_paired_count": 8,
+      "delay_mean_delta_seconds": 3.75,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "fixed_threshold",
+      "detector_b": "ewma",
+      "experiment_count": 15,
+      "detection_a_only": 8,
+      "detection_b_only": 0,
+      "detection_discordant": 8,
+      "detection_p_value": 0.007812500000000002,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": 6,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "fixed_threshold",
+      "detector_b": "cusum",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 0,
+      "detection_discordant": 0,
+      "detection_p_value": 1,
+      "delay_paired_count": 13,
+      "delay_mean_delta_seconds": 2.3076923076923075,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "fixed_threshold",
+      "detector_b": "mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 0,
+      "detection_discordant": 0,
+      "detection_p_value": 1,
+      "delay_paired_count": 13,
+      "delay_mean_delta_seconds": 2.3076923076923075,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "fixed_threshold",
+      "detector_b": "mcd_mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 0,
+      "detection_discordant": 0,
+      "detection_p_value": 1,
+      "delay_paired_count": 13,
+      "delay_mean_delta_seconds": 2.3076923076923075,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "fixed_threshold",
+      "detector_b": "robust_shift",
+      "experiment_count": 15,
+      "detection_a_only": 8,
+      "detection_b_only": 2,
+      "detection_discordant": 10,
+      "detection_p_value": 0.10937500000000017,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": -170,
+      "delay_p_value": 0.1295740851829634
+    },
+    {
+      "detector_a": "plain_zscore",
+      "detector_b": "ewma",
+      "experiment_count": 15,
+      "detection_a_only": 3,
+      "detection_b_only": 0,
+      "detection_discordant": 3,
+      "detection_p_value": 0.25000000000000006,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "plain_zscore",
+      "detector_b": "cusum",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 5,
+      "detection_discordant": 5,
+      "detection_p_value": 0.0625,
+      "delay_paired_count": 8,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "plain_zscore",
+      "detector_b": "mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 5,
+      "detection_discordant": 5,
+      "detection_p_value": 0.0625,
+      "delay_paired_count": 8,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "plain_zscore",
+      "detector_b": "mcd_mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 5,
+      "detection_discordant": 5,
+      "detection_p_value": 0.0625,
+      "delay_paired_count": 8,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "plain_zscore",
+      "detector_b": "robust_shift",
+      "experiment_count": 15,
+      "detection_a_only": 8,
+      "detection_b_only": 7,
+      "detection_discordant": 15,
+      "detection_p_value": 1,
+      "delay_paired_count": 0,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "ewma",
+      "detector_b": "cusum",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 8,
+      "detection_discordant": 8,
+      "detection_p_value": 0.007812500000000002,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "ewma",
+      "detector_b": "mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 8,
+      "detection_discordant": 8,
+      "detection_p_value": 0.007812500000000002,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "ewma",
+      "detector_b": "mcd_mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 8,
+      "detection_discordant": 8,
+      "detection_p_value": 0.007812500000000002,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "ewma",
+      "detector_b": "robust_shift",
+      "experiment_count": 15,
+      "detection_a_only": 5,
+      "detection_b_only": 7,
+      "detection_discordant": 12,
+      "detection_p_value": 0.774414062500002,
+      "delay_paired_count": 0,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "cusum",
+      "detector_b": "mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 0,
+      "detection_discordant": 0,
+      "detection_p_value": 1,
+      "delay_paired_count": 13,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "cusum",
+      "detector_b": "mcd_mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 0,
+      "detection_discordant": 0,
+      "detection_p_value": 1,
+      "delay_paired_count": 13,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "cusum",
+      "detector_b": "robust_shift",
+      "experiment_count": 15,
+      "detection_a_only": 8,
+      "detection_b_only": 2,
+      "detection_discordant": 10,
+      "detection_p_value": 0.10937500000000017,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": -170,
+      "delay_p_value": 0.1295740851829634
+    },
+    {
+      "detector_a": "mahalanobis",
+      "detector_b": "mcd_mahalanobis",
+      "experiment_count": 15,
+      "detection_a_only": 0,
+      "detection_b_only": 0,
+      "detection_discordant": 0,
+      "detection_p_value": 1,
+      "delay_paired_count": 13,
+      "delay_mean_delta_seconds": 0,
+      "delay_p_value": 1
+    },
+    {
+      "detector_a": "mahalanobis",
+      "detector_b": "robust_shift",
+      "experiment_count": 15,
+      "detection_a_only": 8,
+      "detection_b_only": 2,
+      "detection_discordant": 10,
+      "detection_p_value": 0.10937500000000017,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": -170,
+      "delay_p_value": 0.1295740851829634
+    },
+    {
+      "detector_a": "mcd_mahalanobis",
+      "detector_b": "robust_shift",
+      "experiment_count": 15,
+      "detection_a_only": 8,
+      "detection_b_only": 2,
+      "detection_discordant": 10,
+      "detection_p_value": 0.10937500000000017,
+      "delay_paired_count": 5,
+      "delay_mean_delta_seconds": -170,
+      "delay_p_value": 0.1295740851829634
     }
   ]
 }

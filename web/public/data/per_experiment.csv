@@ -1,76 +1,106 @@
-detector,experiment_id,node_id,injection_type,expected_metric,duration_seconds,detected,detection_delay_seconds,recovered,recovery_delay_seconds,peak_metric_value
-fixed_threshold,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00
-fixed_threshold,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00
-fixed_threshold,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,67,true,7,100.00
-fixed_threshold,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91
-fixed_threshold,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00
-fixed_threshold,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00
-fixed_threshold,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00
-fixed_threshold,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00
-fixed_threshold,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00
-fixed_threshold,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,true,13,100.00
-fixed_threshold,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,47,true,17,100.00
-fixed_threshold,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,54,true,24,100.00
-fixed_threshold,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,58,true,28,100.00
-fixed_threshold,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,56,true,26,100.00
-fixed_threshold,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,53,true,23,100.00
-plain_zscore,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00
-plain_zscore,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00
-plain_zscore,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,37,100.00
-plain_zscore,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91
-plain_zscore,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00
-plain_zscore,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00
-plain_zscore,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00
-plain_zscore,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00
-plain_zscore,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00
-plain_zscore,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,false,0,100.00
-plain_zscore,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00
-plain_zscore,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00
-plain_zscore,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00
-plain_zscore,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00
-plain_zscore,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00
-ewma,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,false,0,100.00
-ewma,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00
-ewma,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,7,100.00
-ewma,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91
-ewma,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00
-ewma,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00
-ewma,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00
-ewma,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00
-ewma,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00
-mahalanobis,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00
-mahalanobis,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00
-mahalanobis,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,37,100.00
-mahalanobis,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91
-mahalanobis,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00
-mahalanobis,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00
-mahalanobis,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00
-mahalanobis,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00
-mahalanobis,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00
-mahalanobis,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,true,13,100.00
-mahalanobis,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,47,true,17,100.00
-mahalanobis,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,54,true,24,100.00
-mahalanobis,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,58,true,28,100.00
-mahalanobis,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,56,true,26,100.00
-mahalanobis,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,53,true,23,100.00
-robust_shift,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,147,true,297,100.00
-robust_shift,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00
-robust_shift,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,false,0,false,0,100.00
-robust_shift,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,295,true,565,8.91
-robust_shift,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,39,true,309,100.00
-robust_shift,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,82,true,52,4.00
-robust_shift,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00
-robust_shift,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00
-robust_shift,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00
-robust_shift,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,153,true,603,100.00
-robust_shift,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,367,true,217,100.00
-robust_shift,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,true,734,100.00
-robust_shift,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,198,true,198,100.00
-robust_shift,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,256,true,256,100.00
-robust_shift,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,13,false,0,100.00
+detector,experiment_id,node_id,injection_type,expected_metric,duration_seconds,detected,detection_delay_seconds,recovered,recovery_delay_seconds,peak_metric_value,first_fire_score,first_fire_metric,first_fire_samples_in_window,first_fire_detail
+fixed_threshold,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00,100.0000,cpu_percent,3,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,67,true,7,100.00,100.0000,cpu_percent,3,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91,0.0000,,0,
+fixed_threshold,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00,0.0000,,0,
+fixed_threshold,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00,100.0000,cpu_percent,11,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00,100.0000,cpu_percent,3,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,true,13,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,47,true,17,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,54,true,24,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,58,true,28,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,56,true,26,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+fixed_threshold,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,53,true,23,100.00,100.0000,cpu_percent,2,CPU fixed threshold 80 (value 100.00)
+plain_zscore,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00,100.0000,cpu_percent,2,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00,100.0000,cpu_percent,3,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,37,100.00,100.0000,cpu_percent,2,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91,0.0000,,0,
+plain_zscore,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00,0.0000,,0,
+plain_zscore,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00,100.0000,cpu_percent,11,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00,100.0000,cpu_percent,2,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00,100.0000,cpu_percent,2,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00,100.0000,cpu_percent,3,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,false,0,100.00,100.0000,cpu_percent,2,CPU z-score ≥ 3.0 (value 100.00)
+plain_zscore,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+plain_zscore,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+plain_zscore,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00,0.0000,,0,
+plain_zscore,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00,0.0000,,0,
+plain_zscore,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,false,0,100.00,100.0000,cpu_percent,2,CPU EWMA deviation ≥ 3.0σ (value 100.00)
+ewma,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00,100.0000,cpu_percent,3,CPU EWMA deviation ≥ 3.0σ (value 100.00)
+ewma,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,7,100.00,100.0000,cpu_percent,2,CPU EWMA deviation ≥ 3.0σ (value 100.00)
+ewma,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91,0.0000,,0,
+ewma,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00,100.0000,cpu_percent,11,CPU EWMA deviation ≥ 3.0σ (value 100.00)
+ewma,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00,100.0000,cpu_percent,2,CPU EWMA deviation ≥ 3.0σ (value 100.00)
+ewma,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00,0.0000,,0,
+ewma,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,false,0,false,0,100.00,0.0000,,0,
+cusum,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00,68.1236,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00,67.4491,multivariate,3,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,37,100.00,67.4491,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91,0.0000,,0,
+cusum,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00,0.0000,,0,
+cusum,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00,134.2237,multivariate,11,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00,134.2237,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00,129.5022,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00,134.2237,multivariate,3,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,true,13,100.00,131.8207,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,47,true,17,100.00,129.5022,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,54,true,24,100.00,129.5022,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,58,true,28,100.00,129.5022,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,56,true,26,100.00,129.5022,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+cusum,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,53,true,23,100.00,65.9044,multivariate,2,CUSUM crossed H=5.0 on 1 metric(s); K=0.50
+mahalanobis,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00,70.8176,multivariate,2,multivariate composite z=70.82 across 1 metric(s)
+mahalanobis,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00,67.4500,multivariate,3,multivariate composite z=67.45 across 1 metric(s)
+mahalanobis,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,37,100.00,67.4500,multivariate,2,multivariate composite z=67.45 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91,0.0000,,0,
+mahalanobis,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00,0.0000,,0,
+mahalanobis,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00,131.8225,multivariate,11,multivariate composite z=131.82 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00,131.8225,multivariate,2,multivariate composite z=131.82 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00,131.8225,multivariate,3,multivariate composite z=131.82 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,true,13,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,47,true,17,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,54,true,24,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,58,true,28,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,56,true,26,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mahalanobis,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,53,true,23,100.00,129.5040,multivariate,2,multivariate composite z=129.50 across 1 metric(s)
+mcd_mahalanobis,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,57,true,27,100.00,128.4120,multivariate,2,MCD Mahalanobis d=128.41 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,67,true,37,100.00,118.3058,multivariate,3,MCD Mahalanobis d=118.31 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,true,37,true,37,100.00,176.5616,multivariate,2,MCD Mahalanobis d=176.56 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,815,8.91,0.0000,,0,
+mcd_mahalanobis,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,true,559,100.00,0.0000,,0,
+mcd_mahalanobis,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,302,true,302,4.00,181.3982,multivariate,11,MCD Mahalanobis d=181.40 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,45,true,15,100.00,181.3982,multivariate,2,MCD Mahalanobis d=181.40 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,58,true,28,100.00,176.9131,multivariate,2,MCD Mahalanobis d=176.91 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,true,63,true,33,100.00,167.5934,multivariate,3,MCD Mahalanobis d=167.59 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,43,true,13,100.00,171.5385,multivariate,2,MCD Mahalanobis d=171.54 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,47,true,17,100.00,160.1352,multivariate,2,MCD Mahalanobis d=160.14 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,54,true,24,100.00,159.8065,multivariate,2,MCD Mahalanobis d=159.81 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,58,true,28,100.00,160.0958,multivariate,2,MCD Mahalanobis d=160.10 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,56,true,26,100.00,177.4350,multivariate,2,MCD Mahalanobis d=177.44 (threshold 4.20) across 1 dimension(s)
+mcd_mahalanobis,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,53,true,23,100.00,182.5026,multivariate,2,MCD Mahalanobis d=182.50 (threshold 4.20) across 1 dimension(s)
+robust_shift,jp-lisahost-20260421T045458Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260421T062448Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260421T153933Z-cpu,jp-lisahost,cpu_stress,cpu_percent,90,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260422T072230Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,55,true,325,8.91,98.5000,cpu_percent,2,robust z + baseline shift gate fired
+robust_shift,jp-lisahost-20260422T072646Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,true,99,true,69,100.00,4.0000,cpu_percent,3,CPU returned to baseline
+robust_shift,jp-lisahost-20260422T073103Z-cpu,jp-lisahost,cpu_stress,cpu_percent,30,false,0,false,0,4.00,0.0000,,0,
+robust_shift,jp-lisahost-20260422T073520Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260422T074007Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260422T074502Z-cpu,jp-lisahost,cpu_stress,cpu_percent,60,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260422T074952Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,false,0,false,0,100.00,0.0000,,0,
+robust_shift,jp-lisahost-20260422T075618Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,127,true,577,100.00,100.0000,cpu_percent,4,robust z + baseline shift gate fired
+robust_shift,jp-lisahost-20260422T080241Z-cpu,jp-lisahost,cpu_stress,cpu_percent,150,true,344,true,194,100.00,4.0000,cpu_percent,11,CPU returned to baseline
+robust_shift,jp-lisahost-20260422T080907Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,258,true,258,100.00,100.0000,cpu_percent,8,robust z + baseline shift gate fired
+robust_shift,jp-lisahost-20260422T081809Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,16,true,616,100.00,3.5000,cpu_percent,0,CPU returned to baseline
+robust_shift,jp-lisahost-20260422T082712Z-cpu,jp-lisahost,cpu_stress,cpu_percent,300,true,373,true,73,100.00,3.5176,cpu_percent,12,CPU returned to baseline

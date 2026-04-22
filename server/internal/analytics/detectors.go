@@ -578,6 +578,28 @@ type DetectorBenchmark struct {
 	DetectionDelays  []int64                 `json:"detection_delays_seconds,omitempty"`
 	RecoveryDelays   []int64                 `json:"recovery_delays_seconds,omitempty"`
 	BootstrapSummary *BootstrapIntervalGroup `json:"bootstrap,omitempty"`
+	// Diagnostics is per-experiment detector internals captured at the
+	// first firing event inside each experiment window: what metric
+	// tripped, the detector's internal score, the descriptive body, and
+	// the offset from experiment start. Surfaced in the UI and the
+	// per-experiment CSV so reviewers can audit *why* a detector fired.
+	Diagnostics []DetectorDiagnostic `json:"diagnostics,omitempty"`
+}
+
+// DetectorDiagnostic is a single (detector, experiment) pair's record of
+// the first firing event inside that experiment's detection window.
+// Empty (zero value) if the detector did not fire inside the window.
+type DetectorDiagnostic struct {
+	ExperimentID    string  `json:"experiment_id"`
+	NodeID          string  `json:"node_id"`
+	Fired           bool    `json:"fired"`
+	FirstFireAt     int64   `json:"first_fire_at,omitempty"`
+	OffsetSeconds   int64   `json:"first_fire_offset_seconds,omitempty"`
+	Metric          string  `json:"first_fire_metric,omitempty"`
+	Score           float64 `json:"first_fire_score,omitempty"`
+	Detail          string  `json:"first_fire_detail,omitempty"`
+	Severity        string  `json:"first_fire_severity,omitempty"`
+	SamplesInWindow int     `json:"first_fire_samples_in_window,omitempty"`
 }
 
 // BootstrapIntervalGroup holds 95% bootstrap confidence intervals for the
@@ -654,12 +676,73 @@ func RunDetectorBenchmarkSeed(detector Detector, labels []ExperimentLabel, point
 		GroundTruth:     gt,
 		DetectionDelays: detectionDelays,
 		RecoveryDelays:  recoveryDelays,
+		Diagnostics:     buildDetectorDiagnostics(labels, synthetic, pointsByNode),
 	}
 	if len(detectionDelays) > 0 || len(recoveryDelays) > 0 {
 		group := bootstrapDelaySummary(detectionDelays, recoveryDelays, 2000, seed)
 		bench.BootstrapSummary = &group
 	}
 	return bench
+}
+
+// buildDetectorDiagnostics walks labels and finds the first firing
+// synthetic event from this detector that lands inside each experiment's
+// detection window. The returned slice is 1-to-1 with `labels` so the UI
+// can align diagnostics to experiments even when the detector missed.
+//
+// We deliberately preserve *detector-specific* internal values (composite
+// score, metric label, descriptive body) that db.Event flattening would
+// lose — this is the whole point of exposing the diagnostic: reviewers
+// need to see what the detector "thought" at firing time, not just that
+// it fired.
+func buildDetectorDiagnostics(labels []ExperimentLabel, events []SyntheticEvent, pointsByNode map[string][]db.MetricPoint) []DetectorDiagnostic {
+	if len(labels) == 0 {
+		return nil
+	}
+	diagnostics := make([]DetectorDiagnostic, 0, len(labels))
+	for _, label := range labels {
+		diag := DetectorDiagnostic{
+			ExperimentID: label.ExperimentID,
+			NodeID:       label.NodeID,
+		}
+		detectionEnd := label.EndedAt + 300
+		points := pointsByNode[label.NodeID]
+		for _, event := range events {
+			if event.NodeID != label.NodeID {
+				continue
+			}
+			if event.Type != "anomaly" && event.Type != "status_change" {
+				continue
+			}
+			if event.Timestamp < label.StartedAt || event.Timestamp > detectionEnd {
+				continue
+			}
+			diag.Fired = true
+			diag.FirstFireAt = event.Timestamp
+			diag.OffsetSeconds = event.Timestamp - label.StartedAt
+			diag.Metric = event.Metric
+			diag.Score = event.Value
+			diag.Detail = event.Body
+			diag.Severity = event.Severity
+			diag.SamplesInWindow = countSamplesInRange(points, label.StartedAt, event.Timestamp)
+			break
+		}
+		diagnostics = append(diagnostics, diag)
+	}
+	return diagnostics
+}
+
+func countSamplesInRange(points []db.MetricPoint, from, to int64) int {
+	if len(points) == 0 {
+		return 0
+	}
+	count := 0
+	for _, p := range points {
+		if p.Timestamp >= from && p.Timestamp <= to {
+			count++
+		}
+	}
+	return count
 }
 
 // bootstrapDelaySummary runs a seeded non-parametric bootstrap to get a
