@@ -32,6 +32,8 @@ const StarApp = (() => {
     await fetchDashboard()
     await fetchHealth()
     await fetchConnections()
+    await fetchBenchmark()
+    await fetchScalability()
 
     state.dashboardTimer = setInterval(fetchDashboard, DASHBOARD_INTERVAL)
     state.healthTimer = setInterval(fetchHealth, DASHBOARD_INTERVAL)
@@ -126,6 +128,37 @@ const StarApp = (() => {
       renderNodeDetails()
     } catch (error) {
       console.error('Node detail fetch failed', error)
+    }
+  }
+
+  async function fetchBenchmark() {
+    // The detector benchmark is a static artifact produced by
+    // `make bench`; it is served from /data/benchmark.json so the
+    // frontend can render the result table without depending on the
+    // live Go server. This lets the Cloudflare Pages demo show the
+    // real benchmark numbers from the most recent sprint.
+    try {
+      const response = await fetch('data/benchmark.json', { cache: 'no-cache' })
+      if (!response.ok) throw new Error(`bench ${response.status}`)
+      const data = await response.json()
+      renderBenchmark(data)
+    } catch (error) {
+      const summary = document.getElementById('benchmark-summary')
+      if (summary) summary.textContent = 'Benchmark artifact not available in this deployment.'
+    }
+  }
+
+  async function fetchScalability() {
+    // Single-server capacity numbers are a static artifact of
+    // scripts/loadtest-local.sh; no live API needed.
+    try {
+      const response = await fetch('data/loadtest.json', { cache: 'no-cache' })
+      if (!response.ok) throw new Error(`loadtest ${response.status}`)
+      const data = await response.json()
+      renderScalability(data)
+    } catch (error) {
+      const summary = document.getElementById('scalability-summary')
+      if (summary) summary.textContent = 'Scalability data not available in this deployment.'
     }
   }
 
@@ -352,6 +385,105 @@ const StarApp = (() => {
       article.addEventListener('click', () => selectNode(experiment.node_id))
       root.appendChild(article)
     })
+  }
+
+  function renderBenchmark(data) {
+    const meta = document.getElementById('benchmark-meta')
+    const tbody = document.getElementById('benchmark-tbody')
+    const summary = document.getElementById('benchmark-summary')
+    if (!tbody || !summary) return
+
+    const detectors = Array.isArray(data?.detectors) ? data.detectors : []
+    const experiments = data?.experiments ?? 0
+    if (meta) {
+      meta.textContent = `n=${experiments} experiments • ${detectors.length} detectors`
+    }
+
+    tbody.innerHTML = ''
+    if (!detectors.length) {
+      summary.textContent = 'No detectors in benchmark output.'
+      return
+    }
+
+    const rows = detectors.map(detector => {
+      const gt = detector.ground_truth || {}
+      const boot = detector.bootstrap || {}
+      const ci = Array.isArray(boot.detection_delay_ci95_seconds) ? boot.detection_delay_ci95_seconds : [null, null]
+      const ciText = ci[0] != null && ci[1] != null && ci[0] !== ci[1]
+        ? `${ci[0].toFixed(1)}–${ci[1].toFixed(1)}`
+        : '—'
+      return {
+        name: detector.name,
+        description: detector.description,
+        detect: gt.detection_rate_percent ?? 0,
+        delay: gt.mean_detection_delay_seconds ?? 0,
+        fp: gt.false_positive_events_per_node_hour ?? 0,
+        total: detector.total_events ?? 0,
+        ci: ciText,
+      }
+    })
+
+    // Highlight the best value in each lower-is-better column so the
+    // reader can spot tradeoffs at a glance.
+    const bestFp = Math.min(...rows.map(r => r.fp))
+    const bestDelay = Math.min(...rows.filter(r => r.delay > 0).map(r => r.delay))
+    const bestDetect = Math.max(...rows.map(r => r.detect))
+
+    rows.forEach(row => {
+      const tr = document.createElement('tr')
+      tr.innerHTML = `
+        <td><code>${escapeHtml(row.name)}</code></td>
+        <td class="num ${row.detect === bestDetect ? 'cell-best' : ''}">${row.detect.toFixed(1)}</td>
+        <td class="num ${row.delay === bestDelay && row.delay > 0 ? 'cell-best' : ''}">${row.delay.toFixed(1)}</td>
+        <td class="num">${row.ci}</td>
+        <td class="num ${row.fp === bestFp ? 'cell-best' : ''}">${row.fp.toFixed(3)}</td>
+        <td class="num">${row.total}</td>
+      `
+      tr.title = row.description || ''
+      tbody.appendChild(tr)
+    })
+
+    const winner = rows.find(r => r.detect === bestDetect && r.delay === bestDelay)
+    const leastFp = rows.find(r => r.fp === bestFp)
+    summary.innerHTML = `
+      Offline replay on ${experiments} labelled CPU fault-injection windows across ${data?.nodes?.length || 0} nodes.
+      Lowest false-positive rate: <strong>${escapeHtml(leastFp.name)}</strong> at ${leastFp.fp.toFixed(3)}/node-hour.
+      ${winner ? `Fastest detection on the full set: <strong>${escapeHtml(winner.name)}</strong> at ${winner.delay.toFixed(1)}s.` : ''}
+      See <code>docs/RESULTS.md</code> for the full interpretation.
+    `.trim()
+  }
+
+  function renderScalability(data) {
+    const tbody = document.getElementById('scalability-tbody')
+    const summary = document.getElementById('scalability-summary')
+    const meta = document.getElementById('scalability-meta')
+    if (!tbody || !summary) return
+
+    const runs = Array.isArray(data?.runs) ? data.runs : []
+    if (meta) meta.textContent = data?.host ? escapeHtml(data.host) : '--'
+
+    tbody.innerHTML = ''
+    if (!runs.length) {
+      summary.textContent = 'No loadtest runs available.'
+      return
+    }
+
+    runs.forEach(run => {
+      const successPct = (run.success_rate * 100).toFixed(1)
+      const tr = document.createElement('tr')
+      tr.innerHTML = `
+        <td class="num">${run.agents}</td>
+        <td class="num">${run.rps.toFixed(1)}</td>
+        <td class="num">${run.p50_ms}</td>
+        <td class="num">${run.p95_ms}</td>
+        <td class="num">${run.p99_ms}</td>
+        <td class="num ${run.success_rate >= 0.999 ? 'cell-best' : ''}">${successPct}%</td>
+      `
+      tbody.appendChild(tr)
+    })
+
+    const maxRun = runs[runs.length - 1]
+    summary.textContent = `${maxRun.agents} virtual agents sustained ${maxRun.rps.toFixed(0)} req/s at p99 ${maxRun.p99_ms} ms with ${(maxRun.success_rate*100).toFixed(1)}% success. ${data?.notes || ''}`
   }
 
   function renderReliability(reliability) {

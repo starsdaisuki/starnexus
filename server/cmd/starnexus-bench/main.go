@@ -16,12 +16,14 @@ import (
 )
 
 type benchmarkBundle struct {
-	GeneratedAt int64                          `json:"generated_at"`
-	WindowHours int                            `json:"window_hours"`
-	Experiments int                            `json:"experiments"`
-	Nodes       []string                       `json:"nodes"`
-	Detectors   []analytics.DetectorBenchmark  `json:"detectors"`
-	Labels      []analytics.ExperimentLabel    `json:"labels"`
+	GeneratedAt   int64                          `json:"generated_at"`
+	WindowHours   int                            `json:"window_hours"`
+	Experiments   int                            `json:"experiments"`
+	Nodes         []string                       `json:"nodes"`
+	BootstrapSeed uint64                         `json:"bootstrap_seed"`
+	Detectors     []analytics.DetectorBenchmark  `json:"detectors"`
+	Labels        []analytics.ExperimentLabel    `json:"labels"`
+	PairwiseTests []analytics.PairwiseTest       `json:"pairwise_tests"`
 }
 
 func main() {
@@ -30,12 +32,14 @@ func main() {
 	var outDir string
 	var experimentsPath string
 	var hours int
+	var seed uint64
 
 	flag.StringVar(&dbPath, "db", "./starnexus.db", "SQLite database path")
 	flag.StringVar(&schemaPath, "schema", "./schema.sql", "schema.sql path")
 	flag.StringVar(&outDir, "out", "./analysis-output/bench", "output directory")
 	flag.StringVar(&experimentsPath, "experiments", "", "JSONL experiment labels path (required)")
 	flag.IntVar(&hours, "hours", 168, "lookback window in hours")
+	flag.Uint64Var(&seed, "seed", 42, "bootstrap seed (change to probe CI sensitivity)")
 	flag.Parse()
 
 	if experimentsPath == "" {
@@ -91,17 +95,21 @@ func main() {
 
 	results := make([]analytics.DetectorBenchmark, 0, len(detectors))
 	for _, detector := range detectors {
-		result := analytics.RunDetectorBenchmark(detector, labels, pointsByNode)
+		result := analytics.RunDetectorBenchmarkSeed(detector, labels, pointsByNode, seed)
 		results = append(results, result)
 	}
 
+	pairwise := analytics.BuildPairwiseTests(results)
+
 	bundle := benchmarkBundle{
-		GeneratedAt: now.Unix(),
-		WindowHours: hours,
-		Experiments: len(labels),
-		Nodes:       nodeIDs,
-		Detectors:   results,
-		Labels:      labels,
+		GeneratedAt:   now.Unix(),
+		WindowHours:   hours,
+		Experiments:   len(labels),
+		Nodes:         nodeIDs,
+		BootstrapSeed: seed,
+		Detectors:     results,
+		Labels:        labels,
+		PairwiseTests: pairwise,
 	}
 
 	if err := writeBenchJSON(filepath.Join(outDir, "benchmark.json"), bundle); err != nil {
@@ -112,6 +120,9 @@ func main() {
 	}
 	if err := writeBenchPerExperimentCSV(filepath.Join(outDir, "per_experiment.csv"), results); err != nil {
 		log.Fatalf("write per_experiment.csv: %v", err)
+	}
+	if err := writePairwiseCSV(filepath.Join(outDir, "pairwise_tests.csv"), pairwise); err != nil {
+		log.Fatalf("write pairwise_tests.csv: %v", err)
 	}
 	if err := writeBenchMarkdown(filepath.Join(outDir, "report.md"), bundle); err != nil {
 		log.Fatalf("write report.md: %v", err)
@@ -259,6 +270,47 @@ func writeBenchPerExperimentCSV(path string, results []analytics.DetectorBenchma
 	return writer.Error()
 }
 
+func writePairwiseCSV(path string, tests []analytics.PairwiseTest) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	if err := writer.Write([]string{
+		"detector_a",
+		"detector_b",
+		"experiments_paired",
+		"detection_a_only",
+		"detection_b_only",
+		"detection_discordant",
+		"detection_p_value",
+		"delay_paired_count",
+		"delay_mean_delta_seconds",
+		"delay_p_value",
+	}); err != nil {
+		return err
+	}
+	for _, test := range tests {
+		if err := writer.Write([]string{
+			test.DetectorA,
+			test.DetectorB,
+			strconv.Itoa(test.ExperimentCount),
+			strconv.Itoa(test.DetectionAOnly),
+			strconv.Itoa(test.DetectionBOnly),
+			strconv.Itoa(test.DetectionDiscordant),
+			fmt.Sprintf("%.4f", test.DetectionPValue),
+			strconv.Itoa(test.DelayPairedCount),
+			fmt.Sprintf("%.2f", test.DelayMeanDeltaSec),
+			fmt.Sprintf("%.4f", test.DelayPValue),
+		}); err != nil {
+			return err
+		}
+	}
+	return writer.Error()
+}
+
 func writeBenchMarkdown(path string, bundle benchmarkBundle) error {
 	file, err := os.Create(path)
 	if err != nil {
@@ -297,6 +349,23 @@ func writeBenchMarkdown(path string, bundle benchmarkBundle) error {
 	fmt.Fprintln(file, "\n## Detector Descriptions")
 	for _, result := range bundle.Detectors {
 		fmt.Fprintf(file, "\n- **`%s`**: %s\n", result.Name, result.Description)
+	}
+
+	if len(bundle.PairwiseTests) > 0 {
+		fmt.Fprintln(file, "\n## Pairwise Significance Tests")
+		fmt.Fprintln(file)
+		fmt.Fprintln(file, "Paired tests on the same experiment set. Detection p-value is a two-sided exact binomial on the discordant pairs (H0: each detector equally likely to catch a case the other misses). Delay p-value is a 5000-iteration random-sign permutation test on per-experiment delay deltas for experiments both detectors caught.")
+		fmt.Fprintln(file)
+		fmt.Fprintln(file, "| A | B | A-only | B-only | Detect p | Δdelay (s) | Pairs | Delay p |")
+		fmt.Fprintln(file, "|---|---|---:|---:|---:|---:|---:|---:|")
+		for _, test := range bundle.PairwiseTests {
+			fmt.Fprintf(file, "| `%s` | `%s` | %d | %d | %.4f | %+.1f | %d | %.4f |\n",
+				test.DetectorA, test.DetectorB,
+				test.DetectionAOnly, test.DetectionBOnly,
+				test.DetectionPValue,
+				test.DelayMeanDeltaSec, test.DelayPairedCount, test.DelayPValue,
+			)
+		}
 	}
 
 	fmt.Fprintln(file, "\n## Interpretation Notes")

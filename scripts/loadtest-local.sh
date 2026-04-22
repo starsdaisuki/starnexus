@@ -48,7 +48,7 @@ cleanup() {
 trap 'cleanup; rm -rf "$WORK_DIR"' EXIT
 
 # Wait for server to come up.
-for attempt in $(seq 1 30); do
+for _attempt in $(seq 1 30); do
   if curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
     break
   fi

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/starsdaisuki/starnexus/server/internal/db"
@@ -31,7 +32,15 @@ type Server struct {
 	metrics              *metrics.Registry
 	instrumented         http.Handler
 	startedAt            int64
+	metricsMu            sync.Mutex
+	metricsRefreshedAt   time.Time
 }
+
+// metricsRefreshTTL bounds how often RefreshMetrics hits the DB. A
+// Prometheus scraper polling every 15 s would otherwise trigger full
+// DB queries on every scrape; 20 s gives the scraper fresh-enough
+// numbers without redundant work.
+const metricsRefreshTTL = 20 * time.Second
 
 func New(database *db.DB, token, webDir, agentBinaryPath, geoipDBPath, experimentLabelsPath string, nodeLocations *locations.Store) *Server {
 	registry := metrics.New()
@@ -80,9 +89,21 @@ func (s *Server) registerMetrics() {
 }
 
 // RefreshMetrics updates gauges that derive from current DB state. The
-// analytics scheduler calls this periodically; handlers can also call
-// it opportunistically without incurring noticeable overhead.
+// analytics scheduler calls this periodically; handlers also call it
+// opportunistically (/metrics scrape), but a TTL guards against
+// hitting the DB on every scrape at sub-second intervals.
 func (s *Server) RefreshMetrics() {
+	s.metricsMu.Lock()
+	if time.Since(s.metricsRefreshedAt) < metricsRefreshTTL {
+		// Still serve an always-fresh uptime even when the rest of the
+		// snapshot is cached.
+		s.metrics.SetGauge("starnexus_uptime_seconds", nil, float64(time.Now().Unix()-s.startedAt))
+		s.metricsMu.Unlock()
+		return
+	}
+	s.metricsRefreshedAt = time.Now()
+	s.metricsMu.Unlock()
+
 	s.metrics.SetGauge("starnexus_uptime_seconds", nil, float64(time.Now().Unix()-s.startedAt))
 	if counts, err := s.db.GetStatusCounts(); err == nil && counts != nil {
 		s.metrics.SetGauge("starnexus_nodes_total", map[string]string{"status": "online"}, float64(counts.Online))

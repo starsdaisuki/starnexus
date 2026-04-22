@@ -1,8 +1,8 @@
 package probe
 
 import (
-	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/starsdaisuki/starnexus/agent/internal/config"
@@ -38,7 +38,7 @@ func tcpProbe(target config.ProbeTarget) LinkResult {
 		port = 22 // default SSH
 	}
 
-	addr := fmt.Sprintf("%s:%d", target.Host, port)
+	addr := net.JoinHostPort(target.Host, strconv.Itoa(port))
 	const attempts = 5
 	var totalMs float64
 	var successes int

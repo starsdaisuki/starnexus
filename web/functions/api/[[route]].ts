@@ -83,15 +83,26 @@ async function getNodes(db: D1Database) {
   return (results || []).map(rowToNode)
 }
 
-async function getStatus(db: D1Database) {
+type StatusCounts = {
+  total: number
+  online: number
+  degraded: number
+  offline: number
+  unknown: number
+}
+
+async function getStatus(db: D1Database): Promise<StatusCounts> {
   const { results } = await db.prepare('SELECT status, COUNT(*) as count FROM nodes GROUP BY status').all<{ status: string; count: number }>()
-  const counts: Record<string, number> = { online: 0, degraded: 0, offline: 0, unknown: 0 }
-  let total = 0
+  const counts: StatusCounts = { total: 0, online: 0, degraded: 0, offline: 0, unknown: 0 }
   for (const row of results || []) {
-    counts[row.status] = row.count
-    total += row.count
+    if (row.status in counts) {
+      (counts as any)[row.status] = row.count
+    } else {
+      counts.unknown += row.count
+    }
+    counts.total += row.count
   }
-  return { total, ...counts }
+  return counts
 }
 
 async function getLinks(db: D1Database) {
@@ -317,6 +328,46 @@ function buildDemoGroundTruth() {
   }
 }
 
+function buildDemoIncidents(nodes: any[]) {
+  const now = Math.floor(Date.now() / 1000)
+  const degraded = nodes.filter(n => n.status === 'degraded')
+  const offline = nodes.filter(n => n.status === 'offline')
+  const incidents: any[] = []
+  degraded.forEach((n, i) => {
+    incidents.push({
+      id: 1000 + i,
+      node_id: n.id,
+      node_name: n.name,
+      type: 'node_degraded',
+      severity: 'warning',
+      status: 'open',
+      title: 'Node degraded',
+      body: 'CPU sustained above threshold',
+      fingerprint: `${n.id}:node_degraded:node-degraded`,
+      first_seen: now - 540,
+      last_seen: now - 45,
+      event_count: 6,
+    })
+  })
+  offline.forEach((n, i) => {
+    incidents.push({
+      id: 2000 + i,
+      node_id: n.id,
+      node_name: n.name,
+      type: 'node_offline',
+      severity: 'critical',
+      status: 'open',
+      title: 'Node offline',
+      body: 'No heartbeat for over 90 seconds',
+      fingerprint: `${n.id}:node_offline:node-offline`,
+      first_seen: now - 7200,
+      last_seen: now - 60,
+      event_count: 12,
+    })
+  })
+  return incidents
+}
+
 app.use('/report', async (c, next) => {
   if (c.req.header('Authorization') !== `Bearer ${c.env.API_TOKEN}`) {
     return c.json({ error: 'Unauthorized' }, 401)
@@ -345,7 +396,53 @@ app.get('/dashboard', async c => {
     fleet_analytics: buildFleetAnalytics(nodes, scores),
     reliability_analytics: buildReliabilityAnalytics(nodes, scores, events),
     ground_truth: buildDemoGroundTruth(),
+    incidents: buildDemoIncidents(nodes),
   })
+})
+
+// Demo health endpoint — matches the Go server's healthResponse shape so
+// the production dashboard JS renders control-plane and database health
+// correctly even against the static Pages deployment.
+app.get('/health', async c => {
+  const now = Math.floor(Date.now() / 1000)
+  const nodes = await getNodes(c.env.DB)
+  const status = await getStatus(c.env.DB)
+  const incidents = buildDemoIncidents(nodes)
+  const components = [
+    { name: 'web_dir', ok: true, status: 'directory', path: '/app/web/public', checked: true },
+    { name: 'agent_binary', ok: true, status: 'file', path: '/app/bin/starnexus-agent', checked: true },
+    { name: 'geoip_db', ok: true, status: 'file', path: '/app/bin/GeoLite2-City.mmdb', checked: true },
+    { name: 'experiment_labels', ok: true, status: 'file', path: '/app/analysis-output/experiments.jsonl', checked: true },
+  ]
+  const degraded = status.degraded > 0 || status.offline > 0
+  return c.json({
+    status: degraded ? 'degraded' : 'ok',
+    generated_at: now,
+    uptime_seconds: 3600 * 24 * 7 + Math.floor(Math.random() * 3600),
+    version: {
+      component: 'starnexus-web (Pages demo)',
+      version: 'demo',
+      commit: 'pages-demo',
+      build_time: new Date().toISOString(),
+    },
+    database: {
+      ok: true,
+      quick_check: 'ok',
+      latest_migration: 5,
+      node_count: nodes.length,
+      metric_count: nodes.length * 2880,
+      event_count: 96,
+      incident_count: incidents.length,
+    },
+    node_status: status,
+    components,
+    active_issues: [],
+  })
+})
+
+app.get('/incidents', async c => {
+  const nodes = await getNodes(c.env.DB)
+  return c.json({ incidents: buildDemoIncidents(nodes) })
 })
 
 app.get('/nodes', async c => c.json({ nodes: await getNodes(c.env.DB) }))

@@ -16,16 +16,25 @@ import (
 	"time"
 )
 
+// MaxLabelsPerMetric caps the number of distinct label combinations a
+// single metric may accumulate. Without this cap, a buggy caller that
+// emits unbounded labels (e.g. per-request IDs in a label value) would
+// exhaust server memory. Prometheus best practice recommends keeping
+// per-metric cardinality under a few thousand; we pick a conservative
+// 10k ceiling that comfortably handles realistic VPS fleet sizes.
+const MaxLabelsPerMetric = 10000
+
 // Registry is a concurrent-safe metrics registry. It holds counters,
 // gauges, and summary-style sum/count pairs. Write emits the
 // Prometheus text exposition format.
 type Registry struct {
-	mu       sync.RWMutex
-	counters map[string]*vector
-	gauges   map[string]*vector
-	summary  map[string]*summaryVector
-	help     map[string]string
-	typeOf   map[string]string
+	mu            sync.RWMutex
+	counters      map[string]*vector
+	gauges        map[string]*vector
+	summary       map[string]*summaryVector
+	help          map[string]string
+	typeOf        map[string]string
+	droppedLabels map[string]uint64
 }
 
 type vector struct {
@@ -50,11 +59,12 @@ type summarySample struct {
 // New builds an empty registry.
 func New() *Registry {
 	return &Registry{
-		counters: map[string]*vector{},
-		gauges:   map[string]*vector{},
-		summary:  map[string]*summaryVector{},
-		help:     map[string]string{},
-		typeOf:   map[string]string{},
+		counters:      map[string]*vector{},
+		gauges:        map[string]*vector{},
+		summary:       map[string]*summaryVector{},
+		help:          map[string]string{},
+		typeOf:        map[string]string{},
+		droppedLabels: map[string]uint64{},
 	}
 }
 
@@ -98,7 +108,11 @@ func (r *Registry) IncCounter(name string, labels map[string]string) {
 	r.AddCounter(name, labels, 1)
 }
 
-// AddCounter increments a counter by delta.
+// AddCounter increments a counter by delta. Once a metric has
+// accumulated MaxLabelsPerMetric distinct label combinations, further
+// unseen combos are dropped (counted via droppedLabels) so the
+// registry cannot be driven into unbounded memory growth by a
+// misbehaving caller.
 func (r *Registry) AddCounter(name string, labels map[string]string, delta float64) {
 	r.mu.Lock()
 	vec, ok := r.counters[name]
@@ -112,6 +126,11 @@ func (r *Registry) AddCounter(name string, labels map[string]string, delta float
 	key := labelKey(labels)
 	sample, ok := vec.samples[key]
 	if !ok {
+		if len(vec.samples) >= MaxLabelsPerMetric {
+			r.droppedLabels[name]++
+			r.mu.Unlock()
+			return
+		}
 		sample = &float64Sample{labels: cloneLabels(labels)}
 		vec.samples[key] = sample
 	}
@@ -119,7 +138,8 @@ func (r *Registry) AddCounter(name string, labels map[string]string, delta float
 	atomicAddFloat64Bits(&sample.value, delta)
 }
 
-// SetGauge writes an absolute gauge value.
+// SetGauge writes an absolute gauge value. See AddCounter for the
+// cardinality-cap rationale.
 func (r *Registry) SetGauge(name string, labels map[string]string, value float64) {
 	r.mu.Lock()
 	vec, ok := r.gauges[name]
@@ -133,6 +153,11 @@ func (r *Registry) SetGauge(name string, labels map[string]string, value float64
 	key := labelKey(labels)
 	sample, ok := vec.samples[key]
 	if !ok {
+		if len(vec.samples) >= MaxLabelsPerMetric {
+			r.droppedLabels[name]++
+			r.mu.Unlock()
+			return
+		}
 		sample = &float64Sample{labels: cloneLabels(labels)}
 		vec.samples[key] = sample
 	}
@@ -140,7 +165,8 @@ func (r *Registry) SetGauge(name string, labels map[string]string, value float64
 	atomicStoreFloat64Bits(&sample.value, value)
 }
 
-// ObserveSummary records a value against a summary-style metric.
+// ObserveSummary records a value against a summary-style metric. See
+// AddCounter for the cardinality-cap rationale.
 func (r *Registry) ObserveSummary(name string, labels map[string]string, value float64) {
 	r.mu.Lock()
 	vec, ok := r.summary[name]
@@ -154,12 +180,26 @@ func (r *Registry) ObserveSummary(name string, labels map[string]string, value f
 	key := labelKey(labels)
 	sample, ok := vec.samples[key]
 	if !ok {
+		if len(vec.samples) >= MaxLabelsPerMetric {
+			r.droppedLabels[name]++
+			r.mu.Unlock()
+			return
+		}
 		sample = &summarySample{labels: cloneLabels(labels)}
 		vec.samples[key] = sample
 	}
 	r.mu.Unlock()
 	atomicAddFloat64Bits(&sample.sum, value)
 	atomic.AddUint64(&sample.count, 1)
+}
+
+// DroppedLabelsFor returns how many times a new label combination was
+// refused for a given metric name because the cardinality cap was hit.
+// Primarily useful in tests.
+func (r *Registry) DroppedLabelsFor(name string) uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.droppedLabels[name]
 }
 
 // Handler returns an http.Handler that writes the current registry

@@ -33,7 +33,12 @@ test:
 	cd bot && go test ./...
 
 check: test
-	bash -n scripts/*.sh
+	@if command -v shellcheck >/dev/null 2>&1; then \
+	  shellcheck -S warning scripts/*.sh; \
+	else \
+	  echo "shellcheck not installed — falling back to bash syntax check"; \
+	  bash -n scripts/*.sh; \
+	fi
 	cd web && pnpm exec tsc --noEmit
 	cd web && pnpm audit --audit-level moderate
 

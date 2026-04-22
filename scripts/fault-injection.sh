@@ -97,11 +97,46 @@ echo "Starting CPU-only injection on $SSH_HOST for ${DURATION}s"
 PID="$(ssh "$SSH_HOST" "nohup nice -n 10 timeout ${DURATION}s bash -c 'while :; do :; done' >/tmp/starnexus-cpu-injection.log 2>&1 & echo \$!")"
 echo "remote_pid=$PID"
 
-LABEL_JSON="$(printf '{"experiment_id":"%s","node_id":"%s","injection_type":"cpu_stress","expected_metric":"cpu_percent","expected_direction":"increase","started_at":%s,"ended_at":%s,"duration_seconds":%s,"ssh_host":"%s","notes":"CPU-only nice+timeout fault injection"}' "$EXPERIMENT_ID" "$NODE_ID" "$START_EPOCH" "$END_EPOCH" "$DURATION" "$SSH_HOST")"
+# Build the label via jq so every interpolated value is shell-agnostic
+# JSON — a node-id containing quotes or backslashes cannot corrupt the
+# jsonl file. jq is a hard dependency on the operator's local machine.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required to safely build experiment labels" >&2
+  exit 2
+fi
+LABEL_JSON="$(jq -c -n \
+  --arg id "$EXPERIMENT_ID" \
+  --arg node "$NODE_ID" \
+  --arg host "$SSH_HOST" \
+  --argjson start "$START_EPOCH" \
+  --argjson end "$END_EPOCH" \
+  --argjson duration "$DURATION" \
+  '{
+    experiment_id: $id,
+    node_id: $node,
+    injection_type: "cpu_stress",
+    expected_metric: "cpu_percent",
+    expected_direction: "increase",
+    started_at: $start,
+    ended_at: $end,
+    duration_seconds: $duration,
+    ssh_host: $host,
+    notes: "CPU-only nice+timeout fault injection"
+  }')"
 echo "$LABEL_JSON" >> "$LABELS_PATH"
 echo "experiment_label=$LABELS_PATH"
 if (( PUSH_SERVER_LABEL )); then
-  printf '%s\n' "$LABEL_JSON" | ssh "$SERVER_SSH" "mkdir -p \"$(dirname "$SERVER_LABELS_PATH")\" && cat >> \"$SERVER_LABELS_PATH\""
+  # Pass SERVER_LABELS_PATH and the JSON label as positional args on the
+  # remote side so neither value can be expanded as shell syntax — the
+  # remote shell sees them only as $1/$2 of the bash -s reader.
+  ssh "$SERVER_SSH" \
+    'bash -s "$1" "$2"' _ "$SERVER_LABELS_PATH" "$LABEL_JSON" <<'REMOTE_SCRIPT'
+set -euo pipefail
+path="$1"
+label="$2"
+mkdir -p "$(dirname "$path")"
+printf '%s\n' "$label" >> "$path"
+REMOTE_SCRIPT
   echo "server_experiment_label=${SERVER_SSH}:${SERVER_LABELS_PATH}"
 fi
 
