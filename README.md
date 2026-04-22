@@ -1,192 +1,236 @@
-# StarNexus - Distributed Node Monitoring System
+# StarNexus
 
-A distributed VPS node health monitoring system with real-time world map visualization, live connection tracking, link topology, automated alerting, and AI-powered analytics.
+**A self-hosted distributed VPS observability platform with statistically validated anomaly detection.**
 
-## Live Demo
+Most hobby monitoring projects stop at "it draws nodes on a map". StarNexus ships that, plus:
 
-**https://starnexus-web.pages.dev** (static demo with fake data)
+- **A 5-detector benchmark** (fixed threshold, plain z-score, EWMA, multivariate Mahalanobis, robust-shift) that replays the same metric history through each detector and scores all five against **n = 15 ground-truth fault-injection experiments** with 95 % bootstrap confidence intervals.
+- **A reproducible scalability benchmark** — 500 virtual agents at 1000 reports/sec with p99 latency 109 ms on a single SQLite instance.
+- **End-to-end integration test** that boots a real server, posts reports, and asserts the full `report → degraded → incident → recovery → /metrics` pipeline.
+- **Prometheus-format `/metrics` endpoint** (zero external dependencies — written in ~350 lines in `server/internal/metrics/`).
+- **Docker sandbox** — `docker compose up --build` gives a reviewer the full stack in one command.
 
-Real monitoring dashboard accessible via SSH tunnel to the Go server.
-The repo's single frontend source of truth lives under [`web/public/`](web/public/).
+See [`docs/METHOD.md`](docs/METHOD.md) for methodology, [`docs/RESULTS.md`](docs/RESULTS.md) for numbers, [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for candid scope boundaries.
+
+---
+
+## Results at a Glance
+
+**Detector benchmark (n = 15 labelled CPU fault-injection experiments, 502 steady-state node-hours):**
+
+| Detector | Detect % | Mean delay (s) | 95 % CI (s) | FP / node-hour | Note |
+|---|---:|---:|---|---:|---|
+| `fixed_threshold` | **86.7** | 74.6 | 52–114 | **0.016** | Lowest FP rate — the industry baseline still wins for CPU saturation |
+| `plain_zscore` | 53.3 | 84.0 | 47–149 | 0.542 | Non-robust stddev inflates from bursts → misses real shifts |
+| `ewma` | 33.3 | 101.6 | 44–204 | 0.677 | Control chart chases sustained spikes |
+| `mahalanobis` | **86.7** | **72.3** | 50–112 | 0.311 | Multivariate gain is real but noisy under diagonal-covariance approx |
+| `robust_shift` | 60.0 | 172.2 | 99–244 | 0.096 | Production anomaly surrogate — catches drift the status path misses |
+
+![Detector benchmark head-to-head](docs/figures/benchmark_head_to_head.png)
+
+**Scalability** (single server, M-series CPU, default SQLite config):
+
+| Virtual agents | Requests/sec | p50 (ms) | p95 (ms) | p99 (ms) | Success |
+|---:|---:|---:|---:|---:|---:|
+| 10  |    20 |  8 |  15 |  17 | 100 % |
+| 100 |   200 | 21 |  32 |  35 | 100 % |
+| 500 |  1000 | 71 | 103 | 109 | 100 % |
+
+Zero SQLITE_BUSY errors at every size after the `SetMaxOpenConns(1) + busy_timeout` fix (two lines in `server/internal/db/db.go` — the diagnostic and fix are in the commit history).
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    Web Frontend                  │
-│  World map / Node details / Live connections     │
-│  Tech: HTML + JS + Leaflet                       │
-└──────────────────────┬──────────────────────────┘
-                       │ HTTP API
-┌──────────────────────┴──────────────────────────┐
-│               Go Server (one VPS)                │
-│  API + SQLite + Analytics + Static files         │
-│  Port 8900 (not public, SSH tunnel only)         │
-└──────────────────────┬──────────────────────────┘
-            ┌──────────┼──────────┐
-            │          │          │
-      ┌─────┴───┐ ┌───┴─────┐ ┌─┴───────┐
-      │ Agent A │ │ Agent B │ │ Agent C │  ...
-      │ Tokyo   │ │ Japan   │ │ ...     │
-      └─────────┘ └─────────┘ └─────────┘
-            │
-      ┌─────┴───────────────────────┐
-      │  Telegram Bot                │
-      │  Alerts + Commands + Watchdog│
-      └─────────────────────────────┘
+┌────────────────────────────────────────────────────┐
+│          Web Frontend (Leaflet + vanilla JS)        │
+│  World map · Node detail · Live connections · Bench │
+└─────────────────────────┬──────────────────────────┘
+                          │ HTTP API  (/api/*, /metrics)
+┌─────────────────────────┴──────────────────────────┐
+│                Go Server (single VPS)               │
+│  net/http · SQLite WAL · analytics scheduler        │
+│  /metrics (Prometheus) · incident lifecycle         │
+│  Private port 8900 — access via SSH tunnel only     │
+└────┬─────────────┬─────────────┬───────────────┬───┘
+     │             │             │               │
+ ┌───┴────┐   ┌────┴────┐   ┌────┴────┐    ┌─────┴─────┐
+ │ Agent  │   │ Agent   │   │ Agent   │    │ Telegram  │
+ │ Tokyo  │   │ Japan   │   │ …       │    │ Bot       │
+ └────────┘   └─────────┘   └─────────┘    └───────────┘
 ```
 
-## Modules
+**Four Go modules** (`server/`, `agent/`, `bot/`, and the canonical web frontend under `web/public/`), all cross-compiled to a single static `linux/amd64` binary each.
 
-| Module | Directory | Language | Status |
-|--------|-----------|----------|--------|
-| `web` | [`web/`](web/) | HTML/JS + Cloudflare Pages | ✅ Canonical frontend source |
-| `server` | [`server/`](server/) | Go | ✅ Deployed |
-| `agent` | [`agent/`](agent/) | Go | ✅ Deployed |
-| `bot` | [`bot/`](bot/) | Go | ✅ Deployed |
+---
+
+## The Evaluation Story
+
+The production detector combines two paths — **fixed thresholds for fast, low-FP response to resource saturation**, and **robust z-score with baseline-shift** for the drift detection the static path cannot see. Neither path is optimal alone. The benchmark above makes that complementarity explicit:
+
+- Non-robust adaptive statistics (`plain_zscore`, `ewma`) **score worse than the simplest industry baseline on both axes** — detection rate AND FP rate. This is exactly what the robust-statistics literature predicts for heavy-tailed burst traffic.
+- `mahalanobis` (multivariate) matches `fixed_threshold` on detection and wins slightly on delay, at the cost of ~20× higher FP rate. Multivariate gain is real but needs a proper MCD covariance to beat the scalar detectors convincingly.
+- **All detectors miss the 30 s experiments** — a 30 s stress window on 30 s sampling is below the Nyquist limit for any debounced detector. This is a structural result documented in [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md), not a bug.
+- `robust_shift` has 60 % detection because its 5-minute scheduler cannot see short bursts. The production architecture delegates short events to the status path and uses robust shift for sustained shifts. That architectural division of labour is the empirical defense of the design.
+
+![FP-vs-detection tradeoff](docs/figures/fp_vs_detection_tradeoff.png)
+
+Top-left is the operational sweet spot. `fixed_threshold` and `robust_shift` occupy it; the two naive statistical detectors sit at the noisy right.
+
+---
 
 ## Features
 
-### Server
-- HTTP API (net/http) + SQLite (modernc.org/sqlite, pure Go)
-- `/api/health` and `/api/version` for control-plane health and build metadata
-- Node registration via agent self-report
-- Offline detection (configurable threshold)
-- Threshold alerts (CPU > 80%, memory > 90%)
-- Incident lifecycle model: open, acknowledged, suppressed, recovered
-- Static file serving for web frontend
-- Agent binary + GeoIP DB + install script download endpoints
-- Data analytics: downsampling, anomaly detection, node scoring
+<details>
+<summary><strong>Server</strong> — HTTP API, analytics, incident lifecycle</summary>
+
+- `net/http` + SQLite (`modernc.org/sqlite`, pure Go, WAL mode)
+- `/api/health`, `/api/version`, `/api/dashboard`, incident lifecycle endpoints
+- `/metrics` in Prometheus text format (HTTP counters, latency summaries, node/incident gauges)
+- Offline detection, threshold alerts, static-file serving for the web frontend
+- Disk-backed agent-report queue (24 h at 30 s cadence) that preserves historical `collected_at` timestamps without opening new incidents
 - AI-powered daily reports via Mistral API
+</details>
 
-### Agent
-- System metrics via /proc: CPU, memory, disk, network, load, connections, uptime
-- Link probing via TCP connect (replaces ICMP ping, bypasses firewall blocks)
-- Live connection tracking: auto-detects xray/sing-box ports, collects per-IP byte counters with GeoIP lookup
-- Per-IP cumulative byte tracking (survives TCP connection recycling)
-- In-memory ring buffer (120 entries) for network outage resilience
-- Auto-detect geolocation via ip-api.com on first run
-- Cross-compiles to linux/amd64, single static binary (~10MB)
+<details>
+<summary><strong>Agent</strong> — /proc metrics, link probe, live connection sampling</summary>
 
-### Bot
-- Telegram alerts on node status changes (online/degraded/offline)
-- Alert debouncing (no spam for the same issue)
+- System metrics via `/proc`: CPU, memory, disk, network, load, connections, uptime
+- TCP-connect link probing (bypasses firewall rules that block ICMP)
+- Live connection sampling: auto-detects xray/sing-box ports, per-IP byte counters with GeoIP, survives TCP recycling
+- 120-entry in-memory ring buffer for short outages; disk-backed queue for longer ones
+- Single static binary, ~10 MB
+</details>
+
+<details>
+<summary><strong>Bot</strong> — Telegram operations interface</summary>
+
+- Alerts on status change with debouncing
 - Reverse heartbeat: pings server every 5 min, alerts after 3 failures
-- `/status` command: node summary
-- `/analytics`, `/incidents`, `/events`, and `/node <id-or-name>` commands for operational inspection
-- `/ack <id>` and `/silence <id> [30m|2h|1d]` for incident lifecycle operations
-- `/report` command: on-demand daily report with AI analysis
-- Per-chat alert preferences: `/mute`, `/unmute`, `/subscribe`, `/unsubscribe`, `/daily on|off`, `/prefs`
-- Multi-chat support (alerts sent to multiple Telegram users)
+- Commands: `/status`, `/analytics`, `/incidents`, `/events`, `/node <id>`, `/ack`, `/silence`, `/report`
+- Per-chat preferences: `/mute`, `/unmute`, `/subscribe`, `/daily on|off`, `/prefs`
+- Multi-chat support
+</details>
 
-### Web Frontend
-- Observatory dashboard with summary cards, control-plane health, active incidents, event feed, node matrix, link diagnostics, and right-side node detail
-- Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen mode
-- Day/night terminator line (updates every 60s)
-- Animated node markers with glow effects (online/degraded/offline)
-- GeoIP-estimated node positions are visually distinguished from manual / server-overridden coordinates
-- Experiment View for labelled fault-injection detection and recovery delay
-- Inter-node link lines with latency labels
-- Live connection visualization: animated lines from client locations to nodes
-  - Cloudflare CDN aggregation by /16 subnet
-  - Hover tooltip with per-IP breakdown
-  - Line thickness by transfer rate
-- Node detail panel: trends, incidents, historical events, status history, ingress summary, and statistical highlights
-- Connection toggle button
+<details>
+<summary><strong>Web frontend</strong> — dashboard, world map, experiment view</summary>
 
-### Analytics (automatic)
-- **Anomaly detection** (every 5 min): calibrated robust outlier + baseline-shift detection over a 24h rolling window
-- **Reliability ledger**: separates operational incidents, statistical signals, and labelled experiment signals
-- **Downsampling** (daily 03:00 UTC+8): raw → hourly (7-30d) → daily (30d+), purge old data
-- **Node scoring** (daily): availability 40% + latency 30% + stability 30%
-- **AI daily report** (09:00 UTC+8): metrics summary + Mistral AI analysis → Telegram
-- **Research export**: `make analyze` writes CSV/JSON/Markdown datasets for statistical evaluation and reporting
-- **Detector benchmark**: `make bench` replays the same metric history through five detectors (fixed threshold, plain z-score, EWMA, multivariate Mahalanobis, robust-shift production surrogate) and scores each against the ground-truth labels with bootstrap 95% CIs.
-- **Self-observability**: the server exposes Prometheus-format metrics at `/metrics` (HTTP request counters, latency summaries, node status gauges, active incident counts).
+- Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen and day/night terminator
+- Animated node markers (online/degraded/offline), GeoIP vs manual coordinates distinguished
+- Fleet summary, reliability ledger, Experiment View for labelled fault-injection results
+- Live-connection animation: CDN aggregation, per-IP tooltips, rate-scaled line weight
+- Right-side detail panel with time-series charts, events, incidents, link status, ingress hotspots
+</details>
 
-### Deployment
-- One-liner agent install: `curl -sSL http://<server>:8900/install.sh | bash -s -- --server ... --token ... --node-id ...`
-- Heartbeat watchdog on secondary VPS (cron-based, independent of bot)
-- Consistent SQLite backup and guarded restore scripts
-- systemd services for all modules
-- Firewall: port 8900 restricted to known VPS IPs only, web UI via SSH tunnel
+<details>
+<summary><strong>Analytics (scheduled)</strong> — anomaly detection, scoring, reports</summary>
+
+- Anomaly detection (every 5 min): robust outlier + baseline-shift on a 24 h rolling window
+- Downsampling (daily): raw → hourly (7–30 d) → daily (30 d+)
+- Node scoring (daily): availability 40 % + latency 30 % + stability 30 %
+- AI daily report (09:00 UTC+8): metrics summary + Mistral analysis → Telegram
+- Research export: `make analyze` / `make export-analysis` writes CSV + JSON + Markdown
+- **Detector benchmark**: `make bench` runs all five detectors with bootstrap CIs
+- **Weight sensitivity**: `scripts/validate-reliability.py` sweeps 5 weight schemes, reports Kendall-tau ranking stability
+</details>
+
+---
+
+## Quick Start
+
+**Option A — Docker sandbox (recommended for evaluation):**
+
+```bash
+docker compose up --build
+open http://localhost:8900
+```
+
+Spins up a server + three containerized agents in under a minute. Uses a static token and ephemeral volume — not for production.
+
+**Option B — real VPS deployment:**
+
+```bash
+make build-all                                     # server / agent / bot / analyze / bench / loadtest
+./scripts/deploy-server.sh <ssh-host>              # primary server
+./scripts/onboard-node.sh --primary <server-ssh> --node <new-vps> --node-id <id> --yes
+ssh -L 8900:localhost:8900 <server-host>           # access dashboard via tunnel
+```
+
+One-liner agent install (after the primary is up):
+
+```bash
+curl -sSL http://<server>:8900/install.sh | bash -s -- \
+  --server http://<server>:8900 --token <api-token> --node-id <node-id> --node-name "<display>"
+```
+
+See [`docs/DEPLOY.md`](docs/DEPLOY.md) for full production deployment, [`docs/CONFIG.md`](docs/CONFIG.md) for config fields and `--check-config` validation.
+
+---
+
+## Reproducing the Numbers
+
+```bash
+# Regenerate the detector benchmark (needs an analysis DB + experiments.jsonl)
+make bench
+
+# Regenerate all figures (uses uv to manage matplotlib deps)
+uv run scripts/generate-figures.py
+# or: make figures
+
+# Run the scalability benchmark on a temp server (10 / 50 / 100 / 250 / 500 agents)
+./scripts/loadtest-local.sh
+
+# Expand the labelled fault-injection matrix (3 reps × 4 durations, ≈70 min)
+./scripts/fault-injection-matrix.sh --ssh-host lisahost --node-id jp-lisahost
+
+# End-to-end integration test
+cd server && go test -run TestEndToEndPipeline -v
+```
+
+Every number in [`docs/RESULTS.md`](docs/RESULTS.md) is reproducible from these commands plus the exported artifacts under `analysis-output/`.
+
+---
+
+## Node Management
+
+```bash
+./scripts/manage-node.sh add         # firewall + agent + probe + panel security (interactive)
+./scripts/manage-node.sh remove      # uninstall + clean DB + firewall + probe
+./scripts/manage-node.sh update-ip   # node IP change — keep history
+./scripts/manage-node.sh list        # status snapshot
+./scripts/manage-node.sh reconfig    # switch primary server
+```
+
+Primary server config is cached in `~/.starnexus.env` on first run.
+
+---
 
 ## Tech Stack
 
 | Component | Technology |
-|-----------|-----------|
-| Server | Go (net/http) + SQLite (modernc.org/sqlite) |
-| Agent | Go, /proc metrics, GeoIP (oschwald/geoip2-golang) |
-| Bot | Go, Telegram Bot API |
-| Web | Leaflet, vanilla JS, Cloudflare Pages (demo) |
-| Analytics | Robust statistics, MAD/median outlier detection, baseline-shift analysis, Mistral AI API |
-| Database | SQLite (WAL mode) |
-| Deployment | systemd, iptables, SSH tunnel |
+|---|---|
+| Server / Agent / Bot | Go 1.22+, single static binary, linux/amd64 |
+| Database | SQLite via `modernc.org/sqlite` (pure Go, WAL mode, single-writer pool) |
+| Metrics egress | Prometheus text exposition (zero deps) |
+| Web | Leaflet, vanilla JS, Cloudflare Pages (static demo) |
+| Analytics | Robust statistics (median / MAD), baseline shift, Mahalanobis composite, Mistral AI |
+| Deployment | systemd, iptables / ufw, SSH tunnel, Docker compose (sandbox) |
+| Load/bench tooling | `starnexus-loadtest`, `starnexus-bench`, matplotlib via `uv` |
 
-## Quick Start
+---
 
-```bash
-# Build all binaries (linux/amd64)
-make build-all
+## Documentation Index
 
-# Deploy primary server to a VPS
-./scripts/deploy-server.sh <ssh-host>
-
-# Deploy agent to a new VPS (one-liner)
-curl -sSL http://<server>:8900/install.sh | bash -s -- \
-  --server http://<server>:8900 \
-  --token <api-token> \
-  --node-id <node-id> \
-  --node-name "<display name>"
-
-# Or onboard a new SSH-configured VPS from your local machine
-./scripts/onboard-node.sh --primary <server-ssh-alias> --node <new-vps-alias> --node-id <node-id> --yes
-
-# Access web UI via SSH tunnel
-ssh -L 8900:localhost:8900 <server-host>
-# Then open http://localhost:8900
-```
-
-## Node Management
-
-Manage monitored nodes from your local machine:
-
-```bash
-./scripts/manage-node.sh add         # Add a node (auto: firewall, agent, probe, panel security)
-./scripts/manage-node.sh remove      # Remove a node (auto: uninstall, clean DB, firewall, probe)
-./scripts/manage-node.sh update-ip   # Node changed IP? Update firewall + probe, keep data
-./scripts/manage-node.sh list        # Show all nodes and link status
-./scripts/manage-node.sh reconfig    # Switch to a different primary server
-```
-
-Primary server config is saved to `~/.starnexus.env` on first run — no repeated prompts.
-
-## Analysis Workflow
-
-Run `make export-analysis` to create a consistent production DB backup, fetch experiment labels, export CSV/JSON/Markdown artifacts, and save a timestamped report under `analysis-output/runs/`. `analysis-output/latest` points to the newest run.
-
-Run `make analyze` only when analyzing a local `server/starnexus.db` copy directly. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for how to interpret the proxy evaluation and extend it with controlled fault injection.
-
-CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file. To build a repeated-trial matrix (3 reps × 4 durations, ≈70 min wall-time), run `scripts/fault-injection-matrix.sh`.
-
-Generate visual figures from the exported CSVs with `uv run scripts/generate-figures.py` — it emits CPU time-series with experiment shading, benchmark head-to-head bars, detection-delay boxplots, and a false-positive / detection tradeoff scatter into `analysis-output/figures/`.
-
-Run the local scalability benchmark with `scripts/loadtest-local.sh`: it boots an isolated server on a temp DB and fires 10 / 50 / 100 / 250 / 500 virtual agents at `/api/report`, writing per-size JSON summaries to `analysis-output/loadtest/`. See [`docs/RESULTS.md`](docs/RESULTS.md) for headline numbers.
-
-## Sandbox (Docker)
-
-For a reviewer-friendly one-command demo:
-
-```bash
-docker compose up --build
-open http://localhost:8900   # or visit in any browser
-```
-
-This spins up a server and three containerized agents with synthetic node locations. The sandbox uses a static API token and an ephemeral volume — see [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the scope of this mode.
-
-For the current project status, recent upgrade summary, level assessment, method, results, and recommended next work, see [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md), [`docs/METHOD.md`](docs/METHOD.md), [`docs/RESULTS.md`](docs/RESULTS.md), [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md), and [`docs/ROADMAP.md`](docs/ROADMAP.md).
-
-Configuration is validated at startup; see [`docs/CONFIG.md`](docs/CONFIG.md) for required fields and `--check-config` usage.
+- [`docs/METHOD.md`](docs/METHOD.md) — architecture, telemetry model, robust statistics, anomaly detection, related work
+- [`docs/RESULTS.md`](docs/RESULTS.md) — deployment snapshot, full n = 15 benchmark, scalability, weight sensitivity
+- [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — scope boundaries, data-model limits, evaluation caveats, security notes
+- [`docs/PROJECT-STATUS.md`](docs/PROJECT-STATUS.md) — ongoing state, current fleet, level assessment
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — execution plan and recent completions
+- [`docs/ANALYSIS.md`](docs/ANALYSIS.md) — how to interpret the proxy evaluation and export artifacts
+- [`docs/FAULT-INJECTION.md`](docs/FAULT-INJECTION.md) — CPU-only safe fault-injection wrapper
+- [`docs/CONFIG.md`](docs/CONFIG.md) — required config fields + `--check-config` usage
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — full production deployment runbook
 
 ## License
 
