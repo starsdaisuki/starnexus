@@ -19,6 +19,7 @@ set -euo pipefail
 #   - Primary server already deployed via deploy-server.sh
 # ============================================================
 
+# shellcheck disable=SC2034  # reserved for future relative-path resolution
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$HOME/.starnexus.env"
 
@@ -93,6 +94,7 @@ EOF
 load_or_detect_primary() {
   # Try loading saved config
   if [[ -f "$ENV_FILE" ]]; then
+    # shellcheck source=/dev/null
     source "$ENV_FILE"
     if [[ -n "$PRIMARY_SSH" && -n "$API_TOKEN" ]]; then
       # Verify it's still reachable

@@ -214,6 +214,34 @@
         </details>
       </section>
 
+      <section class="panel panel-scalability">
+        <div class="panel-header">
+          <div>
+            <h2>Scalability Benchmark</h2>
+            <p>Single-server capacity from <code>scripts/loadtest-local.sh</code>. Static snapshot.</p>
+          </div>
+          <div class="panel-actions">
+            <span id="scalability-meta" class="panel-meta">--</span>
+          </div>
+        </div>
+        <div class="benchmark-table-wrap">
+          <table class="benchmark-table" id="scalability-table">
+            <thead>
+              <tr>
+                <th>Agents</th>
+                <th>Req/s</th>
+                <th>p50 (ms)</th>
+                <th>p95 (ms)</th>
+                <th>p99 (ms)</th>
+                <th>Success</th>
+              </tr>
+            </thead>
+            <tbody id="scalability-tbody"></tbody>
+          </table>
+        </div>
+        <p id="scalability-summary" class="panel-summary">Loading scalability data…</p>
+      </section>
+
       <section class="panel panel-reliability">
         <div class="panel-header">
           <div>

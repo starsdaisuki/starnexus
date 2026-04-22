@@ -32,3 +32,4 @@ docs/dev-log-*.md
 docs/starnexus-dev-log-*.md
 !docs/dev-log-20260422.md
 
+__pycache__/

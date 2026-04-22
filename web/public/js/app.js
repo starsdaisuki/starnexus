@@ -33,6 +33,7 @@ const StarApp = (() => {
     await fetchHealth()
     await fetchConnections()
     await fetchBenchmark()
+    await fetchScalability()
 
     state.dashboardTimer = setInterval(fetchDashboard, DASHBOARD_INTERVAL)
     state.healthTimer = setInterval(fetchHealth, DASHBOARD_INTERVAL)
@@ -144,6 +145,20 @@ const StarApp = (() => {
     } catch (error) {
       const summary = document.getElementById('benchmark-summary')
       if (summary) summary.textContent = 'Benchmark artifact not available in this deployment.'
+    }
+  }
+
+  async function fetchScalability() {
+    // Single-server capacity numbers are a static artifact of
+    // scripts/loadtest-local.sh; no live API needed.
+    try {
+      const response = await fetch('data/loadtest.json', { cache: 'no-cache' })
+      if (!response.ok) throw new Error(`loadtest ${response.status}`)
+      const data = await response.json()
+      renderScalability(data)
+    } catch (error) {
+      const summary = document.getElementById('scalability-summary')
+      if (summary) summary.textContent = 'Scalability data not available in this deployment.'
     }
   }
 
@@ -436,6 +451,39 @@ const StarApp = (() => {
       ${winner ? `Fastest detection on the full set: <strong>${escapeHtml(winner.name)}</strong> at ${winner.delay.toFixed(1)}s.` : ''}
       See <code>docs/RESULTS.md</code> for the full interpretation.
     `.trim()
+  }
+
+  function renderScalability(data) {
+    const tbody = document.getElementById('scalability-tbody')
+    const summary = document.getElementById('scalability-summary')
+    const meta = document.getElementById('scalability-meta')
+    if (!tbody || !summary) return
+
+    const runs = Array.isArray(data?.runs) ? data.runs : []
+    if (meta) meta.textContent = data?.host ? escapeHtml(data.host) : '--'
+
+    tbody.innerHTML = ''
+    if (!runs.length) {
+      summary.textContent = 'No loadtest runs available.'
+      return
+    }
+
+    runs.forEach(run => {
+      const successPct = (run.success_rate * 100).toFixed(1)
+      const tr = document.createElement('tr')
+      tr.innerHTML = `
+        <td class="num">${run.agents}</td>
+        <td class="num">${run.rps.toFixed(1)}</td>
+        <td class="num">${run.p50_ms}</td>
+        <td class="num">${run.p95_ms}</td>
+        <td class="num">${run.p99_ms}</td>
+        <td class="num ${run.success_rate >= 0.999 ? 'cell-best' : ''}">${successPct}%</td>
+      `
+      tbody.appendChild(tr)
+    })
+
+    const maxRun = runs[runs.length - 1]
+    summary.textContent = `${maxRun.agents} virtual agents sustained ${maxRun.rps.toFixed(0)} req/s at p99 ${maxRun.p99_ms} ms with ${(maxRun.success_rate*100).toFixed(1)}% success. ${data?.notes || ''}`
   }
 
   function renderReliability(reliability) {

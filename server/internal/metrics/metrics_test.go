@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -89,6 +90,28 @@ func TestHTTPMiddlewareRecordsRequests(t *testing.T) {
 	}
 	if !strings.Contains(output, `starnexus_http_requests_total{method="GET",path="/api/nodes/{id}/details",status="2xx"} 2`) {
 		t.Fatalf("expected 2 normalized id-path requests, got:\n%s", output)
+	}
+}
+
+func TestRegistryCapsCardinality(t *testing.T) {
+	r := New()
+	r.RegisterCounter("test_requests", "test counter")
+	// Emit one more distinct label than the cap; the extra must be
+	// dropped silently rather than causing unbounded memory growth.
+	for i := 0; i <= MaxLabelsPerMetric; i++ {
+		r.IncCounter("test_requests", map[string]string{"id": strconv.Itoa(i)})
+	}
+	if got := r.DroppedLabelsFor("test_requests"); got != 1 {
+		t.Fatalf("expected exactly one dropped label when exceeding cap, got %d", got)
+	}
+	var buf bytes.Buffer
+	if err := r.Write(&buf); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// The accepted-label sample lines should be exactly MaxLabelsPerMetric.
+	lines := strings.Count(buf.String(), "test_requests{")
+	if lines != MaxLabelsPerMetric {
+		t.Fatalf("expected %d sample lines, got %d", MaxLabelsPerMetric, lines)
 	}
 }
 

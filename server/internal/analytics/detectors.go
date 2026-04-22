@@ -138,20 +138,35 @@ func (d *PlainZScoreDetector) Description() string {
 	return "Rolling mean±stddev z-score (|z|≥3, window 100≈50min). Non-robust: long tails inflate stddev and mask real shifts."
 }
 
+// minPlainZScoreWarmup is the minimum number of samples required in
+// the rolling window before the plain z-score detector is allowed to
+// fire. Lower values expose the detector to unstable stddev estimates
+// on tiny warm-up windows; 20 samples is ~10 min at 30 s cadence.
+const minPlainZScoreWarmup = 20
+
 func (d *PlainZScoreDetector) Process(nodeID string, points []db.MetricPoint) []SyntheticEvent {
+	// Defensive guard: skip the leading warm-up samples before even
+	// attempting to compute the rolling statistics. Without this the
+	// edge-trigger scanner would still visit every sample and reject it
+	// per-iteration, which hides intent and is a known class of
+	// off-by-one confusion when Window/MinHold are misconfigured.
+	warmup := d.Window
+	if warmup < minPlainZScoreWarmup {
+		warmup = minPlainZScoreWarmup
+	}
 	var events []SyntheticEvent
 	for _, sel := range defaultMetricSelectors() {
 		floor := d.MinCurrents[sel.Key]
 		events = append(events, scanEdgeTriggered(nodeID, sel, points, func(value float64, idx int) bool {
+			if idx < warmup+d.MinHold {
+				return false
+			}
 			if value < floor {
 				return false
 			}
 			start := idx - d.Window
 			if start < 0 {
 				start = 0
-			}
-			if idx-start < 20 {
-				return false
 			}
 			window := make([]float64, 0, idx-start)
 			for j := start; j < idx; j++ {
@@ -321,13 +336,28 @@ func (d *RobustShiftDetector) Process(nodeID string, points []db.MetricPoint) []
 // whether the overall state vector is unusual compared to the rolling
 // baseline.
 //
+// Design choice — diagonal covariance approximation:
+//
 // The implementation uses a diagonal covariance approximation with
 // median and MAD for scale (Σ_ii = (1.4826·MAD)^2, Σ_ij = 0 for i≠j).
-// This preserves the robust-statistics property of the univariate
-// detector, adds a multi-metric combination rule, but does not model
-// cross-correlation. Full-covariance MCD-Mahalanobis is left for
-// future work because it requires iterative outlier trimming that is
-// not easily justified on a short rolling window.
+// This choice trades off three properties:
+//
+//  1. Robustness: median/MAD absorbs heavy-tailed VPS traffic without
+//     the covariance estimate being dominated by a single burst, which
+//     is the same property that makes robust_shift beat plain_zscore.
+//  2. Sample efficiency: full-rank covariance estimation on four
+//     metrics needs ≥k² well-conditioned samples per metric pair.
+//     Diagonal-only needs k samples per metric. On a 200-sample window
+//     the diagonal form is well-posed; full-rank is marginal.
+//  3. Cost: diagonal is O(N·k) per sample; full-covariance Mahalanobis
+//     needs an O(k³) matrix inverse per window update (or a cached
+//     inverse that has to be invalidated on every window slide).
+//
+// The trade is that cross-metric correlation is ignored. Two metrics
+// moving together in a way that's *individually* unremarkable but
+// *jointly* anomalous will not be flagged. Full-covariance MCD
+// Mahalanobis is the principled upgrade and is listed as future work
+// in docs/LIMITATIONS.md.
 //
 // Only positive deviations count toward the composite because we care
 // about pressure, not drops. A node dropping to 0% CPU is flagged by
@@ -566,8 +596,20 @@ type BootstrapIntervalGroup struct {
 
 // RunDetectorBenchmark runs a detector on every node's metric series,
 // evaluates its synthetic events against the labels, and bootstraps 95%
-// CIs around the delay means.
+// CIs around the delay means. Uses the default bootstrap seed; callers
+// wanting to test seed sensitivity should use RunDetectorBenchmarkSeed.
 func RunDetectorBenchmark(detector Detector, labels []ExperimentLabel, pointsByNode map[string][]db.MetricPoint) DetectorBenchmark {
+	return RunDetectorBenchmarkSeed(detector, labels, pointsByNode, defaultBootstrapSeed)
+}
+
+// defaultBootstrapSeed keeps benchmark output reproducible across
+// identical inputs. CLI callers can override to probe how much the
+// reported CIs depend on the RNG stream.
+const defaultBootstrapSeed uint64 = 42
+
+// RunDetectorBenchmarkSeed is the variant of RunDetectorBenchmark that
+// takes an explicit bootstrap seed for sensitivity testing.
+func RunDetectorBenchmarkSeed(detector Detector, labels []ExperimentLabel, pointsByNode map[string][]db.MetricPoint, seed uint64) DetectorBenchmark {
 	var synthetic []SyntheticEvent
 	nodeIDs := make([]string, 0, len(pointsByNode))
 	for nodeID := range pointsByNode {
@@ -614,7 +656,7 @@ func RunDetectorBenchmark(detector Detector, labels []ExperimentLabel, pointsByN
 		RecoveryDelays:  recoveryDelays,
 	}
 	if len(detectionDelays) > 0 || len(recoveryDelays) > 0 {
-		group := bootstrapDelaySummary(detectionDelays, recoveryDelays, 2000)
+		group := bootstrapDelaySummary(detectionDelays, recoveryDelays, 2000, seed)
 		bench.BootstrapSummary = &group
 	}
 	return bench
@@ -623,9 +665,9 @@ func RunDetectorBenchmark(detector Detector, labels []ExperimentLabel, pointsByN
 // bootstrapDelaySummary runs a seeded non-parametric bootstrap to get a
 // 95% CI for the mean detection and recovery delays. 2000 resamples is
 // overkill for n<30 but cheap and conservative.
-func bootstrapDelaySummary(detection, recovery []int64, iterations int) BootstrapIntervalGroup {
-	detMean, detLo, detHi, detSD := bootstrapMeanCI(detection, iterations, 7)
-	recMean, recLo, recHi, recSD := bootstrapMeanCI(recovery, iterations, 13)
+func bootstrapDelaySummary(detection, recovery []int64, iterations int, baseSeed uint64) BootstrapIntervalGroup {
+	detMean, detLo, detHi, detSD := bootstrapMeanCI(detection, iterations, baseSeed+7)
+	recMean, recLo, recHi, recSD := bootstrapMeanCI(recovery, iterations, baseSeed+13)
 	return BootstrapIntervalGroup{
 		DetectionDelayMean:      detMean,
 		DetectionDelayCI:        [2]float64{detLo, detHi},

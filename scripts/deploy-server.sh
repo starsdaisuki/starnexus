@@ -164,7 +164,7 @@ scp -q "$SCRIPT_DIR/server/schema.sql" "$SSH_HOST:~/starnexus/"
 scp -qr "$SCRIPT_DIR/web/public/"* "$SSH_HOST:~/starnexus/web/"
 
 echo "  Downloading GeoIP database on server..."
-ssh "$SSH_HOST" "cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/ && echo '  GeoIP: $(ls -lh GeoLite2-City.mmdb | awk \"{print \\$5}\")'"
+ssh "$SSH_HOST" 'cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/ && printf "  GeoIP: %s\n" "$(ls -lh GeoLite2-City.mmdb | awk "{print \$5}")"'
 echo ""
 
 # ============================================================
@@ -175,7 +175,9 @@ echo "============================================================"
 echo "  Writing config files..."
 echo "============================================================"
 
-# Server config
+# Server config — deliberately interpolating local vars into the heredoc
+# before sending over SSH so the remote shell never sees $TG_TOKEN etc.
+# shellcheck disable=SC2087
 ssh "$SSH_HOST" "cat > ~/starnexus/config.yaml" << YAML
 port: 8900
 db_path: "./starnexus.db"
@@ -192,6 +194,7 @@ YAML
 echo "  config.yaml"
 
 # Agent config
+# shellcheck disable=SC2087
 ssh "$SSH_HOST" "cat > ~/starnexus/agent-config.yaml" << YAML
 server_url: "http://127.0.0.1:8900"
 api_token: "$API_TOKEN"
@@ -209,6 +212,7 @@ YAML
 echo "  agent-config.yaml"
 
 # Bot config
+# shellcheck disable=SC2087
 ssh "$SSH_HOST" "cat > ~/starnexus/bot-config.yaml" << YAML
 telegram_token: "$TG_TOKEN"
 chat_ids:

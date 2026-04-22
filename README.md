@@ -246,6 +246,7 @@ Primary server config is cached in `~/.starnexus.env` on first run.
 - [`docs/CONFIG.md`](docs/CONFIG.md) — required config fields + `--check-config` usage
 - [`docs/DEPLOY.md`](docs/DEPLOY.md) — full production deployment runbook
 - [`docs/dev-log-20260422.md`](docs/dev-log-20260422.md) — public dev log for the evaluation/observability sprint (benchmark, scalability, figures, docs overhaul)
+- [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) — exact commands, seeds, and durations to regenerate every number in `docs/RESULTS.md`
 
 ## License
 
