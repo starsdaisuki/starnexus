@@ -181,6 +181,39 @@
         <div id="experiment-list" class="stack-list"></div>
       </section>
 
+      <section class="panel panel-benchmark">
+        <div class="panel-header">
+          <div>
+            <h2>Detector Benchmark</h2>
+            <p>Five detectors replayed against the same labelled experiments with 95% bootstrap CIs.</p>
+          </div>
+          <div class="panel-actions">
+            <span id="benchmark-meta" class="panel-meta">--</span>
+          </div>
+        </div>
+        <div class="benchmark-table-wrap">
+          <table class="benchmark-table" id="benchmark-table">
+            <thead>
+              <tr>
+                <th>Detector</th>
+                <th>Detect %</th>
+                <th>Mean delay (s)</th>
+                <th>95% CI</th>
+                <th>FP / node-hour</th>
+                <th>Events</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-tbody"></tbody>
+          </table>
+        </div>
+        <p id="benchmark-summary" class="panel-summary">Loading benchmark…</p>
+        <details class="benchmark-figure">
+          <summary>View head-to-head figure</summary>
+          <img src="data/figures/benchmark_head_to_head.png" alt="Detector benchmark head-to-head comparison" loading="lazy" />
+          <img src="data/figures/fp_vs_detection_tradeoff.png" alt="False-positive vs detection tradeoff scatter" loading="lazy" />
+        </details>
+      </section>
+
       <section class="panel panel-reliability">
         <div class="panel-header">
           <div>

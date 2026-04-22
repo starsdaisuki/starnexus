@@ -32,6 +32,7 @@ const StarApp = (() => {
     await fetchDashboard()
     await fetchHealth()
     await fetchConnections()
+    await fetchBenchmark()
 
     state.dashboardTimer = setInterval(fetchDashboard, DASHBOARD_INTERVAL)
     state.healthTimer = setInterval(fetchHealth, DASHBOARD_INTERVAL)
@@ -126,6 +127,23 @@ const StarApp = (() => {
       renderNodeDetails()
     } catch (error) {
       console.error('Node detail fetch failed', error)
+    }
+  }
+
+  async function fetchBenchmark() {
+    // The detector benchmark is a static artifact produced by
+    // `make bench`; it is served from /data/benchmark.json so the
+    // frontend can render the result table without depending on the
+    // live Go server. This lets the Cloudflare Pages demo show the
+    // real benchmark numbers from the most recent sprint.
+    try {
+      const response = await fetch('data/benchmark.json', { cache: 'no-cache' })
+      if (!response.ok) throw new Error(`bench ${response.status}`)
+      const data = await response.json()
+      renderBenchmark(data)
+    } catch (error) {
+      const summary = document.getElementById('benchmark-summary')
+      if (summary) summary.textContent = 'Benchmark artifact not available in this deployment.'
     }
   }
 
@@ -352,6 +370,72 @@ const StarApp = (() => {
       article.addEventListener('click', () => selectNode(experiment.node_id))
       root.appendChild(article)
     })
+  }
+
+  function renderBenchmark(data) {
+    const meta = document.getElementById('benchmark-meta')
+    const tbody = document.getElementById('benchmark-tbody')
+    const summary = document.getElementById('benchmark-summary')
+    if (!tbody || !summary) return
+
+    const detectors = Array.isArray(data?.detectors) ? data.detectors : []
+    const experiments = data?.experiments ?? 0
+    if (meta) {
+      meta.textContent = `n=${experiments} experiments • ${detectors.length} detectors`
+    }
+
+    tbody.innerHTML = ''
+    if (!detectors.length) {
+      summary.textContent = 'No detectors in benchmark output.'
+      return
+    }
+
+    const rows = detectors.map(detector => {
+      const gt = detector.ground_truth || {}
+      const boot = detector.bootstrap || {}
+      const ci = Array.isArray(boot.detection_delay_ci95_seconds) ? boot.detection_delay_ci95_seconds : [null, null]
+      const ciText = ci[0] != null && ci[1] != null && ci[0] !== ci[1]
+        ? `${ci[0].toFixed(1)}–${ci[1].toFixed(1)}`
+        : '—'
+      return {
+        name: detector.name,
+        description: detector.description,
+        detect: gt.detection_rate_percent ?? 0,
+        delay: gt.mean_detection_delay_seconds ?? 0,
+        fp: gt.false_positive_events_per_node_hour ?? 0,
+        total: detector.total_events ?? 0,
+        ci: ciText,
+      }
+    })
+
+    // Highlight the best value in each lower-is-better column so the
+    // reader can spot tradeoffs at a glance.
+    const bestFp = Math.min(...rows.map(r => r.fp))
+    const bestDelay = Math.min(...rows.filter(r => r.delay > 0).map(r => r.delay))
+    const bestDetect = Math.max(...rows.map(r => r.detect))
+
+    rows.forEach(row => {
+      const tr = document.createElement('tr')
+      tr.innerHTML = `
+        <td><code>${escapeHtml(row.name)}</code></td>
+        <td class="num ${row.detect === bestDetect ? 'cell-best' : ''}">${row.detect.toFixed(1)}</td>
+        <td class="num ${row.delay === bestDelay && row.delay > 0 ? 'cell-best' : ''}">${row.delay.toFixed(1)}</td>
+        <td class="num">${row.ci}</td>
+        <td class="num ${row.fp === bestFp ? 'cell-best' : ''}">${row.fp.toFixed(3)}</td>
+        <td class="num">${row.total}</td>
+      `
+      tr.title = row.description || ''
+      tbody.appendChild(tr)
+    })
+
+    const winner = rows.find(r => r.detect === bestDetect && r.delay === bestDelay)
+    const leastFp = rows.find(r => r.fp === bestFp)
+    summary.innerHTML = `
+      Offline replay on ${experiments} labelled CPU fault-injection windows across ${data?.nodes?.length || 0} nodes.
+      Lowest false-positive rate: <strong>${escapeHtml(leastFp.name)}</strong> at ${leastFp.fp.toFixed(3)}/node-hour.
+      ${winner ? `Fastest detection on the full set: <strong>${escapeHtml(winner.name)}</strong> at ${winner.delay.toFixed(1)}s.` : ''}
+      See <code>docs/RESULTS.md</code> for the full interpretation.
+    `.trim()
   }
 
   function renderReliability(reliability) {
