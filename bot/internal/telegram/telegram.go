@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const apiBase = "https://api.telegram.org/bot"
+const defaultAPIBase = "https://api.telegram.org/bot"
 
 // Bot is a minimal Telegram Bot API client supporting multiple chat IDs.
 type Bot struct {
@@ -19,6 +19,7 @@ type Bot struct {
 	chatIDs []int64
 	client  *http.Client
 	offset  int64 // getUpdates offset
+	apiBase string
 }
 
 func NewBot(token string, chatIDs []int64) *Bot {
@@ -26,7 +27,16 @@ func NewBot(token string, chatIDs []int64) *Bot {
 		token:   token,
 		chatIDs: chatIDs,
 		client:  &http.Client{Timeout: 30 * time.Second},
+		apiBase: defaultAPIBase,
 	}
+}
+
+// SetAPIBase overrides the Telegram API base URL. Used only by the
+// end-to-end test to point the bot at a local httptest server. The
+// trailing "/bot" is part of the base — callers should pass a URL that
+// ends there (e.g. "http://127.0.0.1:8080/bot").
+func (b *Bot) SetAPIBase(base string) {
+	b.apiBase = base
 }
 
 // SendMessage sends a text message to all configured chats.
@@ -54,7 +64,7 @@ func (b *Bot) SendMessageTo(chatID int64, text string) error {
 		"parse_mode": {"HTML"},
 	}
 
-	resp, err := b.client.PostForm(apiBase+b.token+"/sendMessage", params)
+	resp, err := b.client.PostForm(b.apiBase+b.token+"/sendMessage", params)
 	if err != nil {
 		return fmt.Errorf("sendMessage: %w", err)
 	}
@@ -138,7 +148,7 @@ func (b *Bot) getUpdates() ([]Update, error) {
 		"timeout": {"10"},
 	}
 
-	resp, err := b.client.PostForm(apiBase+b.token+"/getUpdates", params)
+	resp, err := b.client.PostForm(b.apiBase+b.token+"/getUpdates", params)
 	if err != nil {
 		return nil, err
 	}

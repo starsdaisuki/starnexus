@@ -89,7 +89,9 @@ func main() {
 		analytics.NewFixedThresholdDetector(),
 		analytics.NewPlainZScoreDetector(),
 		analytics.NewEWMADetector(),
+		analytics.NewCUSUMDetector(),
 		analytics.NewMahalanobisDetector(),
+		analytics.NewMCDMahalanobisDetector(),
 		analytics.NewRobustShiftDetector(),
 	}
 
@@ -244,12 +246,21 @@ func writeBenchPerExperimentCSV(path string, results []analytics.DetectorBenchma
 		"recovered",
 		"recovery_delay_seconds",
 		"peak_metric_value",
+		"first_fire_score",
+		"first_fire_metric",
+		"first_fire_samples_in_window",
+		"first_fire_detail",
 	}); err != nil {
 		return err
 	}
 
 	for _, result := range results {
+		diagByID := map[string]analytics.DetectorDiagnostic{}
+		for _, d := range result.Diagnostics {
+			diagByID[d.ExperimentID] = d
+		}
 		for _, experiment := range result.GroundTruth.Experiments {
+			diag := diagByID[experiment.ExperimentID]
 			if err := writer.Write([]string{
 				result.Name,
 				experiment.ExperimentID,
@@ -262,6 +273,10 @@ func writeBenchPerExperimentCSV(path string, results []analytics.DetectorBenchma
 				strconv.FormatBool(experiment.Recovered),
 				strconv.FormatInt(experiment.RecoveryDelaySeconds, 10),
 				fmt.Sprintf("%.2f", experiment.PeakMetricValue),
+				fmt.Sprintf("%.4f", diag.Score),
+				diag.Metric,
+				strconv.Itoa(diag.SamplesInWindow),
+				diag.Detail,
 			}); err != nil {
 				return err
 			}

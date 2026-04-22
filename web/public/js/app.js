@@ -667,6 +667,8 @@ const StarApp = (() => {
     renderChart('bandwidth', metrics, point => point.bandwidth_down, '#87ff86', formatBandwidth(metricsSnapshot.bandwidth_down))
     renderChart('connections', metrics, point => point.connections, '#8cb0ff', metricsSnapshot.connections != null ? `${metricsSnapshot.connections}` : '--')
 
+    renderDetectorInternals(analytics)
+
     renderCompactList('detail-live-connections', (liveConnections || []).slice(0, 8), conn => stackItem(
       `${escapeHtml(conn.src_ip)} • ${escapeHtml(conn.protocol || 'unknown')}`,
       `${escapeHtml(conn.src_city || '?')}${conn.src_country ? `, ${escapeHtml(conn.src_country)}` : ''}`,
@@ -703,7 +705,82 @@ const StarApp = (() => {
   function renderChart(name, points, accessor, color, summaryValue) {
     document.getElementById(`chart-${name}-value`).textContent = summaryValue
     const root = document.getElementById(`chart-${name}`)
-    root.innerHTML = sparkline(points || [], accessor, color)
+    root.innerHTML = sparkline(points || [], accessor, color, name)
+  }
+
+  function renderDetectorInternals(analytics) {
+    const root = document.getElementById('detail-internals')
+    if (!root) return
+    root.innerHTML = ''
+    if (!analytics || analytics.sample_count === 0) {
+      root.innerHTML = '<div class="internals-empty">No detector state — not enough samples yet.</div>'
+      return
+    }
+    const entries = [
+      ['CPU', analytics.cpu, '%'],
+      ['Memory', analytics.memory, '%'],
+      ['Bandwidth Down', analytics.bandwidth_down, ' KB/s'],
+      ['Connections', analytics.connections, ''],
+    ]
+    entries.forEach(([label, metric, unit]) => {
+      if (!metric) return
+      root.insertAdjacentHTML('beforeend', internalsCard(label, metric, unit))
+    })
+  }
+
+  function internalsCard(label, metric, unit) {
+    const robustZ = formatSigned(metric.robust_z)
+    const zClass = classifyZ(metric.robust_z)
+    const shift = metric.shift || {}
+    const shiftDelta = shift.delta_percent != null ? `${formatSigned(shift.delta_percent)}%` : '--'
+    const shiftScore = shift.shift_score != null ? formatSigned(shift.shift_score) : '--'
+    const shiftClass = classifyShift(shift.shift_score, shift.significant)
+    const ewmaDev = shift.ewma_deviation != null ? formatSigned(shift.ewma_deviation) + unit : '--'
+    const current = metric.current != null ? `${formatValue(metric.current)}${unit}` : '--'
+    const median = metric.median != null ? `${formatValue(metric.median)}${unit}` : '--'
+    const outlierBadge = metric.outlier ? '<span class="internals-badge outlier">outlier</span>' : ''
+    const shiftBadge = shift.significant ? '<span class="internals-badge shift">shift</span>' : ''
+    return `
+      <article class="internals-card">
+        <header>
+          <strong>${escapeHtml(label)}</strong>
+          <span class="internals-volatility">${escapeHtml(metric.volatility || 'steady')} • ${escapeHtml(metric.trend || 'flat')}</span>
+        </header>
+        <dl>
+          <dt>Current / Median</dt>
+          <dd>${current} <span class="internals-sep">→</span> ${median}</dd>
+          <dt>Robust z (median/MAD)</dt>
+          <dd class="${zClass}">${robustZ}</dd>
+          <dt>EWMA residual</dt>
+          <dd>${ewmaDev}</dd>
+          <dt>Shift score</dt>
+          <dd class="${shiftClass}">${shiftScore} <span class="internals-sep">(</span>Δ ${shiftDelta}<span class="internals-sep">)</span></dd>
+        </dl>
+        <footer>${outlierBadge}${shiftBadge}</footer>
+      </article>
+    `
+  }
+
+  function classifyZ(z) {
+    if (z == null || !isFinite(z)) return 'internals-value'
+    const abs = Math.abs(z)
+    if (abs >= 3.5) return 'internals-value z-critical'
+    if (abs >= 2.5) return 'internals-value z-elevated'
+    return 'internals-value'
+  }
+
+  function classifyShift(score, significant) {
+    if (significant) return 'internals-value shift-significant'
+    if (score == null || !isFinite(score)) return 'internals-value'
+    if (Math.abs(score) >= 2) return 'internals-value shift-mild'
+    return 'internals-value'
+  }
+
+  function formatValue(v) {
+    if (v == null || !isFinite(v)) return '--'
+    if (Math.abs(v) >= 1000) return v.toFixed(0)
+    if (Math.abs(v) >= 10) return v.toFixed(1)
+    return v.toFixed(2)
   }
 
   function renderAnalyticsSummary(analytics) {
@@ -833,7 +910,7 @@ const StarApp = (() => {
     `
   }
 
-  function sparkline(points, accessor, color) {
+  function sparkline(points, accessor, color, metricName) {
     if (!points.length) return `<div class="event-body">No samples in the selected window.</div>`
 
     const width = 260
@@ -842,6 +919,7 @@ const StarApp = (() => {
     const values = points.map(point => Number(accessor(point) || 0))
     const min = Math.min(...values)
     const max = Math.max(...values)
+    const current = values[values.length - 1]
     const range = max - min || 1
     const stepX = (width - padding * 2) / Math.max(1, points.length - 1)
     const path = values.map((value, index) => {
@@ -850,15 +928,19 @@ const StarApp = (() => {
       return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`
     }).join(' ')
 
+    const niceName = metricName ? metricName.charAt(0).toUpperCase() + metricName.slice(1) : 'Metric'
+    const ariaLabel = `${niceName} sparkline over ${points.length} samples. Current ${formatValue(current)}, min ${formatValue(min)}, max ${formatValue(max)}.`
+
     return `
-      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Metric sparkline">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(ariaLabel)}">
+        <desc>${escapeHtml(ariaLabel)}</desc>
         <defs>
           <linearGradient id="fill-${color.replace('#', '')}" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="${color}" stop-opacity="0.4"></stop>
             <stop offset="100%" stop-color="${color}" stop-opacity="0.02"></stop>
           </linearGradient>
         </defs>
-        <path d="${path}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round"></path>
+        <path d="${path}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"></path>
       </svg>
     `
   }

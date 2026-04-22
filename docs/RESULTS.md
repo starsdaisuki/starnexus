@@ -43,20 +43,37 @@ and is discussed under the Nyquist limit below.
 
 ## Detector Benchmark (`starnexus-bench`)
 
-All five detectors replay the same metric history over the 7-day
+All seven detectors replay the same metric history over the 7-day
 window and are scored against the same labelled experiments. Offline
 replay ensures apples-to-apples results.
 
 | Detector | Detect % | Mean delay (s) | 95% CI (s) | Recovery % | Mean recovery (s) | FP / node-hour | Total events |
 |---|---:|---:|---|---:|---:|---:|---:|
-| `fixed_threshold` | **86.7** | 74.6 | 52.5–113.6 | 100 | 130.3 | **0.016** | 32 |
-| `plain_zscore` | 53.3 | 84.0 | 47.2–148.5 | 60 | 205.9 | 0.542 | 286 |
+| `fixed_threshold` | **86.7** | 74.6 | 52.5–114.2 | 100 | 130.3 | **0.016** | 32 |
+| `plain_zscore` | 53.3 | 84.0 | 47.3–147.1 | 60 | 205.9 | 0.549 | 290 |
 | `ewma` | 33.3 | 101.6 | 44.2–203.6 | 40 | 289.2 | 0.677 | 348 |
-| `mahalanobis` | **86.7** | **72.3** | 49.7–111.8 | 100 | 132.3 | 0.311 | 180 |
-| `robust_shift` | 60.0 | 172.2 | 99.3–244.1 | 60 | 359.0 | 0.096 | 59 |
+| `cusum` | **86.7** | **72.3** | 49.8–112.3 | 100 | 132.3 | 1.039 | 546 |
+| `mahalanobis` | **86.7** | **72.3** | 49.8–112.3 | 100 | 132.3 | 0.330 | 190 |
+| `mcd_mahalanobis` | **86.7** | **72.3** | 49.8–112.3 | 100 | 132.3 | 0.378 | 214 |
+| `robust_shift` | 46.7 | 181.7 | 85.4–286.4 | 47 | 301.7 | 0.116 | 66 |
 
-Steady-state exposure: 502.3 node-hours. Bootstrap CIs use 2000
-resamples with fixed seed.
+Steady-state exposure: 502.4 node-hours. Bootstrap CIs use 2000
+resamples with fixed seed 42.
+
+Pairwise significance (exact two-sided binomial on discordant detections,
+n = 15):
+
+| Comparison | Discordant pairs | p-value | Interpretation |
+|---|---:|---:|---|
+| `fixed_threshold` vs `ewma` | 8 | **0.008** | Significantly better |
+| `fixed_threshold` vs `plain_zscore` | 5 | 0.063 | Borderline |
+| `fixed_threshold` vs `cusum` | 0 | 1.000 | Indistinguishable |
+| `fixed_threshold` vs `mahalanobis` | 0 | 1.000 | Indistinguishable |
+| `fixed_threshold` vs `mcd_mahalanobis` | 0 | 1.000 | Indistinguishable |
+| `mahalanobis` vs `mcd_mahalanobis` | 0 | 1.000 | Same 13/15 detected |
+
+Full pairwise matrix lives in `analysis-output/bench/pairwise_tests.csv`
+(21 pairs = C(7,2)).
 
 ### Key Findings
 
@@ -67,25 +84,39 @@ For CPU saturation on a monitored VPS, the simplest industry baseline
 still wins — precisely because CPU > 80 % for two consecutive samples
 is an unambiguous signal.
 
-**2. Multivariate Mahalanobis matches fixed_threshold on detection
-and beats it slightly on delay** (72.3 s vs 74.6 s, 95 % CIs overlap).
-But false-positive rate is 19× higher (0.311 vs 0.016). The
-multivariate gain is real but comes with a noise cost that the current
-diagonal-covariance approximation cannot mute.
+**2. Four detectors converge on the same 13/15 detections.**
+Fixed-threshold, CUSUM, diagonal-Mahalanobis, and MCD-Mahalanobis all
+catch the same 13 experiments and miss the same 2 (both 30 s
+stress windows, per the Nyquist note below). Mean detection delay is
+74.6 s for fixed-threshold and 72.3 s for the other three — a 2.3 s
+edge that the 95 % CIs place well inside overlap. The pairwise
+two-sided binomial p-value on their discordant sets is 1.0, i.e. there
+is no evidence on this labelled set that any of the four is more
+sensitive than any other.
+
+The detectors separate on **false-positive rate** instead. From lowest
+to highest per node-hour: fixed-threshold (0.016), diagonal Mahalanobis
+(0.330), MCD Mahalanobis (0.378), CUSUM (1.039). Fixed-threshold's
+19× advantage over Mahalanobis is consistent with the previous sprint's
+numbers. MCD adds cross-metric correlation at the cost of a 14 %
+higher FP rate than the diagonal variant — a documented trade, not a
+regression.
 
 **3. Non-robust statistical methods (plain z, EWMA) perform worse
 than fixed thresholds on both axes.** Plain z-score catches 53 % with
-0.542 FP/hour; EWMA catches 33 % with 0.677 FP/hour. This is exactly
+0.549 FP/hour; EWMA catches 33 % with 0.677 FP/hour. This is exactly
 the empirical result the textbook warns about: VPS traffic has heavy
 tails, the stddev is inflated by legitimate bursts, and sustained
 spikes climb inside the adapting baseline. Non-robust adaptive
-statistics is a losing strategy here.
+statistics is a losing strategy here. The p-value for
+fixed-threshold vs ewma is 0.008 (significant); vs plain_zscore is
+0.063 (borderline at the 5 % level).
 
-**4. Robust shift (the production anomaly surrogate) catches 60 %
+**4. Robust shift (the production anomaly surrogate) catches 47 %
 with long delay** because it scans every 5 min on a 24 h window. All
 three 30 s experiments are below its effective sampling threshold; the
 full 300 s experiments show up at the next scan mark, giving a mean
-detection delay of 172 s. This is a conscious architectural choice —
+detection delay of 182 s. This is a conscious architectural choice —
 the production system delegates fast response to the status-threshold
 path (`fixed_threshold` analog) and uses robust shift to catch slow
 baseline drifts the status path cannot see.
@@ -93,11 +124,22 @@ baseline drifts the status path cannot see.
 **5. The 30 s experiments are below the detection Nyquist limit for
 any debounced detector running on 30 s sampling.** Fixed threshold
 requires two consecutive samples above 80 %, which a 30 s stress
-window can provide only at most once. Mahalanobis, plain z, EWMA all
-also require `MinHold=2` to suppress single-sample noise. The only
-way to catch a 30 s spike reliably is to either speed up sampling or
-drop the debounce, both of which trade noise for responsiveness. The
-result is documented rather than papered over.
+window can provide only at most once. Every other detector — Mahalanobis,
+MCD-Mahalanobis, CUSUM, plain z, EWMA — also requires `MinHold=2` to
+suppress single-sample noise. The only way to catch a 30 s spike
+reliably is to either speed up sampling or drop the debounce, both of
+which trade noise for responsiveness. This is why four structurally
+different detectors miss the same two experiments.
+
+**6. CUSUM is the fast-trigger variant of the top tier — same
+detections, much higher FP.** CUSUM matches fixed-threshold's 13/15
+on the labelled set and its mean delay is identical to Mahalanobis at
+72.3 s. But CUSUM's unadaptive reference-value-and-decision-interval
+design (K=0.5, H=5 on robust-standardised residuals) produces 522
+false events across 502 node-hours — 1.04 FP/hour, the highest of
+all seven detectors. Calibrating K and H against a longer non-labelled
+run would bring this down; the current textbook defaults are
+deliberately untuned to avoid trained-on-the-test artifacts.
 
 ### Narrative For Evaluation
 

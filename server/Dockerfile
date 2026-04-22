@@ -15,5 +15,10 @@ COPY server/config.yaml.example /app/config.yaml
 RUN mkdir -p /app/data && chown -R starnexus:starnexus /app
 USER starnexus
 ENV TZ=UTC
+# Declare /app/data as a volume so `docker run` without a bind mount
+# still gets a named volume rather than losing the database on
+# container restart. docker-compose.yml already mounts a named volume
+# explicitly; this declaration matters for bare `docker run` users.
+VOLUME ["/app/data"]
 EXPOSE 8900
 CMD ["/app/starnexus-server", "/app/config.yaml"]

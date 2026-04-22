@@ -144,11 +144,11 @@ func TestBenchCLIEndToEnd(t *testing.T) {
 	if bundle.Experiments != 1 {
 		t.Fatalf("expected 1 experiment, got %d", bundle.Experiments)
 	}
-	if len(bundle.Detectors) != 5 {
-		t.Fatalf("expected 5 detectors in output, got %d", len(bundle.Detectors))
+	if len(bundle.Detectors) != 7 {
+		t.Fatalf("expected 7 detectors in output, got %d", len(bundle.Detectors))
 	}
-	if len(bundle.PairwiseTests) != 10 { // C(5,2)
-		t.Fatalf("expected 10 pairwise tests, got %d", len(bundle.PairwiseTests))
+	if len(bundle.PairwiseTests) != 21 { // C(7,2)
+		t.Fatalf("expected 21 pairwise tests, got %d", len(bundle.PairwiseTests))
 	}
 
 	var fixedThresh struct {
