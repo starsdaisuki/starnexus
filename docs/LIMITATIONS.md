@@ -81,10 +81,14 @@ explicitly out of scope:
 
 ## Evaluation Limits
 
-- **Labelled experiments are CPU-only.** `fault-injection.sh` runs a
-  nice-d busy loop with `timeout`. Memory pressure, disk pressure, and
-  network-latency fault injection are not implemented because rollback
-  safety on live VPS nodes is harder to guarantee.
+- **Labelled experiments cover CPU + memory, not disk or network.**
+  `fault-injection.sh` runs a nice-d busy loop with `timeout`;
+  `fault-injection-memory.sh` runs a Python bytearray page-touch
+  allocator capped at a fraction of `MemAvailable`. Disk-IO pressure
+  and network-latency (tc-netem) injection are still unimplemented
+  because rollback safety is harder to guarantee on live VPS nodes —
+  tc-netem locks SSH out if the rollback cron/`at` job fails, and disk
+  pressure can damage the persistent store.
 - **Small and node-biased experiment set.** Current labels are all on
   `jp-lisahost`. Results generalize to other nodes only insofar as
   steady-state metric distributions are similar. Detection rate on a
