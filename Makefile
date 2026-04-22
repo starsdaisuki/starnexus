@@ -17,7 +17,7 @@ build-bot:
 	cd bot && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(BOT_LDFLAGS)" -o ../bin/starnexus-bot
 
 build-analyze:
-	cd server && go build -o ../bin/starnexus-analyze ./cmd/starnexus-analyze
+	cd server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bin/starnexus-analyze ./cmd/starnexus-analyze
 
 build-all: build-server build-agent build-bot build-analyze
 
