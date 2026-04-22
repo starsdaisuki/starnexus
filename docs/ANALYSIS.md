@@ -2,23 +2,52 @@
 
 StarNexus can export a reproducible research dataset from the production SQLite database. This is intended for statistical analysis, anomaly-method evaluation, and graduation-project reporting.
 
-## Export Locally
+## Recommended Production Export
 
 From the repo root:
 
 ```bash
-make analyze
+make export-analysis
 ```
 
-The command writes `analysis-output/` with:
+This creates a consistent backup from the primary VPS, fetches remote experiment labels, runs the analysis CLI locally, and writes a timestamped directory:
+
+```text
+analysis-output/runs/YYYYMMDDTHHMMSSZ/
+analysis-output/latest -> runs/YYYYMMDDTHHMMSSZ
+```
+
+Each run contains:
 
 - `nodes.csv`: node metadata, map location source, status, and score.
 - `metrics.csv`: raw metric time series for the selected lookback window.
 - `events.csv`: status-change and anomaly events used as weak labels.
 - `event_classifications.csv`: heuristic event category, likely cause, confidence, and evidence.
 - `connection_sources.csv`: persisted ingress source summaries.
+- `experiment_evaluation.csv`: labelled experiment detection/recovery table, when labels exist.
 - `analytics.json`: full robust-statistics, fleet radar, and evaluation payload.
 - `report.md`: compact human-readable analysis summary.
+- `manifest.json`: backup path, host, lookback window, and label source used for the run.
+
+Useful options:
+
+```bash
+scripts/export-analysis.sh --hours 24
+scripts/export-analysis.sh --keep-backups 14 --keep-runs 20
+scripts/export-analysis.sh --from-backup backups/starnexus-db-dmit-YYYYMMDDTHHMMSSZ.sqlite.gz
+```
+
+`--from-backup` is useful for reproducing an old report exactly without touching the production server.
+
+## Local Database Export
+
+If you already have `server/starnexus.db` locally, run:
+
+```bash
+make analyze
+```
+
+This writes directly into `analysis-output/` without creating a timestamped run.
 
 ## Export From A VPS Copy
 

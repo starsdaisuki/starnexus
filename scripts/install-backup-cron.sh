@@ -7,6 +7,7 @@ REMOTE_OUT_DIR="/root/starnexus/backups"
 MINUTE="20"
 HOUR="3"
 KEEP="14"
+SKIP_VERIFY=0
 
 usage() {
   cat <<'EOF'
@@ -20,6 +21,7 @@ Options:
   --minute <0-59>          Cron minute. Default: 20
   --hour <0-23>            Cron hour in server local time. Default: 3
   --keep <count>           Keep newest count remote backups. Default: 14
+  --skip-verify            Install script and cron without running an immediate backup
   -h, --help               Show this help.
 
 Installs /root/starnexus/backup-db-local.sh and a cron entry tagged
@@ -40,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     --minute) MINUTE="$2"; shift 2 ;;
     --hour) HOUR="$2"; shift 2 ;;
     --keep) KEEP="$2"; shift 2 ;;
+    --skip-verify) SKIP_VERIFY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --*) err "unknown option: $1"; usage; exit 1 ;;
     *) err "unexpected argument: $1"; usage; exit 1 ;;
@@ -86,8 +89,16 @@ timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 host="$(hostname | tr -c 'A-Za-z0-9_.-' '_')"
 out="$REMOTE_OUT_DIR/starnexus-db-$host-$timestamp.sqlite.gz"
 
-sqlite3 "$REMOTE_DB" ".backup '$tmp'"
-gzip -c "$tmp" > "$out"
+low_priority() {
+  if command -v ionice >/dev/null 2>&1; then
+    ionice -c2 -n7 nice -n 10 "$@"
+  else
+    nice -n 10 "$@"
+  fi
+}
+
+low_priority sqlite3 "$REMOTE_DB" ".backup '$tmp'"
+low_priority gzip -1 -c "$tmp" > "$out"
 
 removed=0
 while IFS= read -r old_backup; do
@@ -112,6 +123,10 @@ entry="$MINUTE $HOUR * * * REMOTE_DB='$REMOTE_DB' REMOTE_OUT_DIR='$REMOTE_OUT_DI
 REMOTE
 ok "cron installed: $MINUTE $HOUR * * *"
 
-info "Running one backup now for verification"
-ssh "$HOST" "REMOTE_DB='$REMOTE_DB' REMOTE_OUT_DIR='$REMOTE_OUT_DIR' KEEP='$KEEP' /root/starnexus/backup-db-local.sh"
-ok "backup cron verified"
+if [[ "$SKIP_VERIFY" -eq 1 ]]; then
+  ok "skipped immediate backup verification"
+else
+  info "Running one backup now for verification"
+  ssh "$HOST" "REMOTE_DB='$REMOTE_DB' REMOTE_OUT_DIR='$REMOTE_OUT_DIR' KEEP='$KEEP' /root/starnexus/backup-db-local.sh"
+  ok "backup cron verified"
+fi

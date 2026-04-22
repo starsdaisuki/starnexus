@@ -161,7 +161,9 @@ Primary server config is saved to `~/.starnexus.env` on first run — no repeate
 
 ## Analysis Workflow
 
-Run `make analyze` to export `nodes.csv`, `metrics.csv`, `events.csv`, `connection_sources.csv`, `analytics.json`, and `report.md` into `analysis-output/`. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for how to interpret the proxy evaluation and extend it with controlled fault injection.
+Run `make export-analysis` to create a consistent production DB backup, fetch experiment labels, export CSV/JSON/Markdown artifacts, and save a timestamped report under `analysis-output/runs/`. `analysis-output/latest` points to the newest run.
+
+Run `make analyze` only when analyzing a local `server/starnexus.db` copy directly. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for how to interpret the proxy evaluation and extend it with controlled fault injection.
 
 CPU-only labelled experiments can be run with `scripts/fault-injection.sh`; labels are appended to `analysis-output/experiments.jsonl` and shown in the dashboard Experiment View when `experiment_labels_path` points to that file.
 

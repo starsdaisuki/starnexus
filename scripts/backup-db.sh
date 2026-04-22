@@ -66,8 +66,16 @@ tmp="$(mktemp /tmp/starnexus-db-backup.XXXXXX.sqlite)"
 cleanup() { rm -f "$tmp"; }
 trap cleanup EXIT
 
-sqlite3 "$REMOTE_DB" ".backup '$tmp'"
-gzip -c "$tmp"
+low_priority() {
+  if command -v ionice >/dev/null 2>&1; then
+    ionice -c2 -n7 nice -n 10 "$@"
+  else
+    nice -n 10 "$@"
+  fi
+}
+
+low_priority sqlite3 "$REMOTE_DB" ".backup '$tmp'"
+low_priority gzip -1 -c "$tmp"
 REMOTE
 
 if [[ ! -s "$out_path" ]]; then

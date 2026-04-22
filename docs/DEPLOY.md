@@ -664,7 +664,9 @@ scripts/install-backup-cron.sh --host dmit --keep 14
 
 `backup-db.sh` uses SQLite `.backup` on the remote host so the snapshot is consistent even while the server is running. `restore-db.sh` stops `starnexus-server` and `starnexus-bot`, saves the current database as `starnexus.db.pre-restore.<timestamp>`, restores the backup, removes stale WAL/SHM sidecars, restarts services, and verifies `/api/status`.
 
-`install-backup-cron.sh` installs `/root/starnexus/backup-db-local.sh` and a `starnexus-backup` cron entry on the primary VPS. The default schedule is 03:20 server local time and keeps the newest 14 compressed SQLite backups under `/root/starnexus/backups`.
+Backups run SQLite and gzip through low-priority `nice`/`ionice` when available, and use fast compression to reduce impact on the primary VPS.
+
+`install-backup-cron.sh` installs `/root/starnexus/backup-db-local.sh` and a `starnexus-backup` cron entry on the primary VPS. The default schedule is 03:20 server local time and keeps the newest 14 compressed SQLite backups under `/root/starnexus/backups`. Use `--skip-verify` when updating cron configuration without running an immediate backup.
 
 ### Remove a node
 
