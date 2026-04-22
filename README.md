@@ -14,6 +14,20 @@ See [`docs/METHOD.md`](docs/METHOD.md) for methodology, [`docs/RESULTS.md`](docs
 
 ---
 
+## Live Demo
+
+**[starnexus-web.pages.dev](https://starnexus-web.pages.dev)** — Cloudflare Pages deployment of the dashboard with synthetic node data so reviewers can click around without any VPS.
+
+The canonical frontend source is [`web/public/`](web/public/) (same code that the Go server serves on port 8900 via SSH tunnel). Real monitoring dashboards are intentionally private; the public demo uses anonymised node names and randomised metrics that refresh on every page load. Local dev:
+
+```bash
+cd web && pnpm install && pnpm dev   # wrangler pages dev on public/
+```
+
+For a fully self-contained sandbox with the real Go server behind it, use [Docker](#quick-start) instead.
+
+---
+
 ## Results at a Glance
 
 **Detector benchmark (n = 15 labelled CPU fault-injection experiments, 502 steady-state node-hours):**
