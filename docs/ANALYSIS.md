@@ -2,22 +2,52 @@
 
 StarNexus can export a reproducible research dataset from the production SQLite database. This is intended for statistical analysis, anomaly-method evaluation, and graduation-project reporting.
 
-## Export Locally
+## Recommended Production Export
 
 From the repo root:
+
+```bash
+make export-analysis
+```
+
+This creates a consistent backup from the primary VPS, fetches remote experiment labels, runs the analysis CLI locally, and writes a timestamped directory:
+
+```text
+analysis-output/runs/YYYYMMDDTHHMMSSZ/
+analysis-output/latest -> runs/YYYYMMDDTHHMMSSZ
+```
+
+Each run contains:
+
+- `nodes.csv`: node metadata, map location source, status, and score.
+- `metrics.csv`: raw metric time series for the selected lookback window.
+- `events.csv`: status-change and anomaly events used as weak labels.
+- `event_classifications.csv`: heuristic event category, likely cause, confidence, and evidence.
+- `connection_sources.csv`: persisted ingress source summaries.
+- `experiment_evaluation.csv`: labelled experiment detection/recovery table, when labels exist.
+- `analytics.json`: full robust-statistics, fleet radar, and evaluation payload.
+- `report.md`: compact human-readable analysis summary.
+- `manifest.json`: backup path, host, lookback window, and label source used for the run.
+
+Useful options:
+
+```bash
+scripts/export-analysis.sh --hours 24
+scripts/export-analysis.sh --keep-backups 14 --keep-runs 20
+scripts/export-analysis.sh --from-backup backups/starnexus-db-node-a-YYYYMMDDTHHMMSSZ.sqlite.gz
+```
+
+`--from-backup` is useful for reproducing an old report exactly without touching the production server.
+
+## Local Database Export
+
+If you already have `server/starnexus.db` locally, run:
 
 ```bash
 make analyze
 ```
 
-The command writes `analysis-output/` with:
-
-- `nodes.csv`: node metadata, map location source, status, and score.
-- `metrics.csv`: raw metric time series for the selected lookback window.
-- `events.csv`: status-change and anomaly events used as weak labels.
-- `connection_sources.csv`: persisted ingress source summaries.
-- `analytics.json`: full robust-statistics, fleet radar, and evaluation payload.
-- `report.md`: compact human-readable analysis summary.
+This writes directly into `analysis-output/` without creating a timestamped run.
 
 ## Export From A VPS Copy
 
@@ -61,6 +91,8 @@ If `experiments.jsonl` is available, pass it to the analysis CLI:
   -experiments ./analysis-output/experiments.jsonl
 ```
 
-This adds `experiment_evaluation.csv` and a `ground_truth` section in `analytics.json` with detection delay, recovery delay, detection rate, recovery rate, and false-positive event count outside labelled experiment windows.
+This adds `experiment_evaluation.csv` and a `ground_truth` section in `analytics.json` with detection delay, recovery delay, detection rate, recovery rate, observation node-hours, steady-state node-hours, false-positive event count, and false-positive rate per node-hour outside labelled experiment windows.
+
+False-positive rate is normalized by steady-state node-hours. StarNexus excludes each labelled experiment window plus the 300-second detection grace window before calculating the denominator. This makes results more comparable across different lookback windows and fleet sizes than a raw event count.
 
 The dashboard reads the server-side `experiment_labels_path` and shows the same ground-truth metrics in Experiment View. The default fault-injection wrapper appends labels to the server path automatically.

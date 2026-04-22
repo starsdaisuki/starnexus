@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -8,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/starsdaisuki/starnexus/agent/internal/buildinfo"
 	"github.com/starsdaisuki/starnexus/agent/internal/collector"
 	"github.com/starsdaisuki/starnexus/agent/internal/config"
 	"github.com/starsdaisuki/starnexus/agent/internal/geoip"
@@ -18,6 +20,20 @@ import (
 func main() {
 	cfgPath := "config.yaml"
 	if len(os.Args) > 1 {
+		if os.Args[1] == "--version" || os.Args[1] == "version" {
+			fmt.Println(buildinfo.Current("starnexus-agent").String())
+			return
+		}
+		if os.Args[1] == "--check-config" || os.Args[1] == "check-config" {
+			if len(os.Args) > 2 {
+				cfgPath = os.Args[2]
+			}
+			if _, err := config.Load(cfgPath); err != nil {
+				log.Fatalf("Config check failed: %v", err)
+			}
+			fmt.Printf("Config OK: %s\n", cfgPath)
+			return
+		}
 		cfgPath = os.Args[1]
 	}
 
@@ -50,7 +66,18 @@ func main() {
 	log.Printf("StarNexus agent starting: node=%s server=%s interval=%ds probes=%d",
 		cfg.NodeID, cfg.ServerURL, cfg.ReportIntervalSeconds, len(cfg.ProbeTargets))
 
-	rep := reporter.New(cfg.ServerURL, cfg.APIToken)
+	rep, err := reporter.NewWithQueue(cfg.ServerURL, cfg.APIToken, reporter.QueueOptions{
+		Path:           cfg.QueuePath,
+		MaxReports:     cfg.QueueMaxReports,
+		FlushBatchSize: cfg.QueueFlushBatchSize,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize reporter queue: %v", err)
+	}
+	if cfg.QueuePath != "" {
+		log.Printf("Disk report queue enabled: path=%s max_reports=%d flush_batch=%d",
+			cfg.QueuePath, cfg.QueueMaxReports, cfg.QueueFlushBatchSize)
+	}
 
 	// Graceful shutdown
 	stop := make(chan os.Signal, 1)
@@ -120,6 +147,7 @@ func collectAndReport(cfg *config.Config, rep *reporter.Reporter, locationSource
 	}
 
 	report := reporter.Report{
+		CollectedAt:    time.Now().Unix(),
 		NodeID:         cfg.NodeID,
 		Name:           cfg.NodeName,
 		Provider:       cfg.Provider,

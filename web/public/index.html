@@ -120,6 +120,29 @@
         <div id="incidents-list" class="stack-list"></div>
       </section>
 
+      <section class="panel panel-control-plane">
+        <div class="panel-header">
+          <div>
+            <h2>Control Plane</h2>
+            <p>Server health, build metadata, database check, and required runtime assets.</p>
+          </div>
+          <span id="health-status-badge" class="health-badge">Unknown</span>
+        </div>
+        <div class="control-plane-grid">
+          <article>
+            <span>Version</span>
+            <strong id="health-version">--</strong>
+            <small id="health-build">--</small>
+          </article>
+          <article>
+            <span>Database</span>
+            <strong id="health-db">--</strong>
+            <small id="health-db-detail">--</small>
+          </article>
+        </div>
+        <div id="health-components" class="stack-list compact"></div>
+      </section>
+
       <section class="panel panel-radar">
         <div class="panel-header">
           <div>

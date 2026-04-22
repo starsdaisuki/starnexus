@@ -220,6 +220,12 @@ longitude: 139.6503
 # How often to collect and report metrics (seconds).
 report_interval_seconds: 30
 
+# Disk-backed metric report queue for primary-server/network outages.
+# 2880 reports is about 24h at the default 30s interval.
+queue_path: "./agent-queue.jsonl"
+queue_max_reports: 2880
+queue_flush_batch_size: 120
+
 # GeoIP database for connection geolocation.
 geoip_db_path: "./GeoLite2-City.mmdb"
 
@@ -355,8 +361,17 @@ Verify:
 systemctl is-active starnexus-server starnexus-agent starnexus-bot
 # Should print: active active active
 
+./starnexus-server --check-config ./config.yaml
+./starnexus-agent --check-config ./agent-config.yaml
+./starnexus-bot --check-config ./bot-config.yaml
+
 curl -s http://localhost:8900/api/status
 # Should print: {"total":1,"online":1,...}
+
+curl -s http://localhost:8900/api/health
+./starnexus-server --version
+./starnexus-agent --version
+./starnexus-bot --version
 ```
 
 ---
@@ -638,11 +653,20 @@ The bot accepts commands only from `chat_ids` in `bot-config.yaml`.
 
 Preferences are stored in `starnexus-bot-state.json` in the bot working directory. Commands still work while a chat is muted or unsubscribed; only proactive alerts and daily summaries are filtered.
 
-### Backup database
+### Backup and restore database
 
 ```bash
-scp SERVER:~/starnexus/starnexus.db ./starnexus-backup-$(date +%Y%m%d).db
+scripts/backup-db.sh --host node-a
+scripts/backup-db.sh --host node-a --keep 14
+scripts/restore-db.sh --host node-a --backup backups/starnexus-db-node-a-YYYYMMDDTHHMMSSZ.sqlite.gz
+scripts/install-backup-cron.sh --host node-a --keep 14
 ```
+
+`backup-db.sh` uses SQLite `.backup` on the remote host so the snapshot is consistent even while the server is running. `restore-db.sh` stops `starnexus-server` and `starnexus-bot`, saves the current database as `starnexus.db.pre-restore.<timestamp>`, restores the backup, removes stale WAL/SHM sidecars, restarts services, and verifies `/api/status`.
+
+Backups run SQLite and gzip through low-priority `nice`/`ionice` when available, and use fast compression to reduce impact on the primary VPS.
+
+`install-backup-cron.sh` installs `/root/starnexus/backup-db-local.sh` and a `starnexus-backup` cron entry on the primary VPS. The default schedule is 03:20 server local time and keeps the newest 14 compressed SQLite backups under `/root/starnexus/backups`. Use `--skip-verify` when updating cron configuration without running an immediate backup.
 
 ### Remove a node
 

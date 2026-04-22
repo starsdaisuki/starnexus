@@ -24,6 +24,7 @@ bot/config.yaml
 GeoLite2-City.mmdb
 .dist/
 analysis-output/
+backups/
 
 # Dev logs (private, do not push)
 docs/dev-log-*.md

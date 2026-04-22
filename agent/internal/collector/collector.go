@@ -21,21 +21,19 @@ type Metrics struct {
 	UptimeSeconds int64   `json:"uptime_seconds"`
 }
 
-// Collect gathers all system metrics. Takes ~1 second due to CPU sampling.
+// Collect gathers all system metrics. Takes ~2 seconds due to CPU sampling.
 func Collect() (*Metrics, error) {
 	m := &Metrics{}
 
-	// CPU requires two samples 1s apart
 	cpu1, err := readCPUSample()
 	if err != nil {
 		return nil, fmt.Errorf("cpu sample 1: %w", err)
 	}
-
-	// Read network sample 1 at the same time
 	net1, err := readNetworkBytes()
 	if err != nil {
 		return nil, fmt.Errorf("net sample 1: %w", err)
 	}
+	start := time.Now()
 
 	time.Sleep(1 * time.Second)
 
@@ -44,16 +42,31 @@ func Collect() (*Metrics, error) {
 		return nil, fmt.Errorf("cpu sample 2: %w", err)
 	}
 
+	time.Sleep(1 * time.Second)
+
+	cpu3, err := readCPUSample()
+	if err != nil {
+		return nil, fmt.Errorf("cpu sample 3: %w", err)
+	}
 	net2, err := readNetworkBytes()
 	if err != nil {
 		return nil, fmt.Errorf("net sample 2: %w", err)
 	}
 
-	m.CPUPercent = calculateCPUPercent(cpu1, cpu2)
+	// Median over two short intervals and one combined interval suppresses
+	// single-tick artifacts on low-load virtualized CPUs.
+	m.CPUPercent = median3(
+		calculateCPUPercent(cpu1, cpu2),
+		calculateCPUPercent(cpu2, cpu3),
+		calculateCPUPercent(cpu1, cpu3),
+	)
 
-	// Bandwidth in KB/s (1 second interval)
-	m.BandwidthUp = float64(net2.txBytes-net1.txBytes) / 1024.0
-	m.BandwidthDown = float64(net2.rxBytes-net1.rxBytes) / 1024.0
+	elapsed := time.Since(start).Seconds()
+	if elapsed <= 0 {
+		elapsed = 1
+	}
+	m.BandwidthUp = float64(net2.txBytes-net1.txBytes) / 1024.0 / elapsed
+	m.BandwidthDown = float64(net2.rxBytes-net1.rxBytes) / 1024.0 / elapsed
 
 	// Memory
 	mem, err := readMemory()
@@ -109,13 +122,26 @@ func readCPUSample() (*cpuSample, error) {
 				return nil, fmt.Errorf("unexpected /proc/stat format")
 			}
 
-			var total, idle uint64
+			values := make([]uint64, 0, len(fields)-1)
 			for i := 1; i < len(fields); i++ {
-				v, _ := strconv.ParseUint(fields[i], 10, 64)
-				total += v
-				if i == 4 { // idle is the 4th value (index 4)
-					idle = v
+				v, err := strconv.ParseUint(fields[i], 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("unexpected /proc/stat value %q", fields[i])
 				}
+				values = append(values, v)
+			}
+
+			var total uint64
+			for i, value := range values {
+				// guest and guest_nice are already included in user/nice.
+				if i == 8 || i == 9 {
+					continue
+				}
+				total += value
+			}
+			idle := values[3]
+			if len(values) > 4 {
+				idle += values[4] // iowait is idle time for utilization purposes.
 			}
 			return &cpuSample{idle: idle, total: total}, nil
 		}
@@ -124,12 +150,35 @@ func readCPUSample() (*cpuSample, error) {
 }
 
 func calculateCPUPercent(s1, s2 *cpuSample) float64 {
+	if s2.total < s1.total || s2.idle < s1.idle {
+		return 0
+	}
 	totalDelta := float64(s2.total - s1.total)
 	if totalDelta == 0 {
 		return 0
 	}
 	idleDelta := float64(s2.idle - s1.idle)
-	return (1.0 - idleDelta/totalDelta) * 100.0
+	usage := (1.0 - idleDelta/totalDelta) * 100.0
+	if usage < 0 {
+		return 0
+	}
+	if usage > 100 {
+		return 100
+	}
+	return usage
+}
+
+func median3(a, b, c float64) float64 {
+	if a > b {
+		a, b = b, a
+	}
+	if b > c {
+		b, c = c, b
+	}
+	if a > b {
+		a, b = b, a
+	}
+	return b
 }
 
 // --- Memory ---

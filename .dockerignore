@@ -1,0 +1,17 @@
+.git
+.gitignore
+.gocache
+.claude
+.dist
+.DS_Store
+bin/
+analysis-output/
+backups/
+web/node_modules
+web/.wrangler
+web/.mf
+docs/dev-log-*.md
+docs/starnexus-dev-log-*.md
+**/*.log
+**/*_test.go
+**/testdata
