@@ -4,7 +4,6 @@ node_modules/
 .DS_Store
 .gocache/
 *.log
-web/public/assets/earth-at-night.png
 
 # Go build artifacts
 bin/

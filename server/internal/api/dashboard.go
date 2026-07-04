@@ -310,6 +310,12 @@ func limitParam(r *http.Request, fallback int) int {
 	if err != nil || parsed <= 0 {
 		return fallback
 	}
+	// Cap so an unauthenticated ?limit=99999999 can't serialize entire
+	// tables per request.
+	const maxLimit = 1000
+	if parsed > maxLimit {
+		return maxLimit
+	}
 	return parsed
 }
 

@@ -666,30 +666,30 @@ func (m *Monitor) cmdMute(chatID int64, args []string) string {
 		duration = 7 * 24 * time.Hour
 	}
 
-	pref := m.preference(chatID)
-	pref.MutedUntil = time.Now().Add(duration).Unix()
-	m.setPreference(chatID, pref)
+	m.updatePreference(chatID, func(pref *chatPreference) {
+		pref.MutedUntil = time.Now().Add(duration).Unix()
+	})
 	return fmt.Sprintf("Muted proactive alerts for %s. Commands still work.", formatDuration(duration))
 }
 
 func (m *Monitor) cmdUnmute(chatID int64) string {
-	pref := m.preference(chatID)
-	pref.MutedUntil = 0
-	m.setPreference(chatID, pref)
+	m.updatePreference(chatID, func(pref *chatPreference) {
+		pref.MutedUntil = 0
+	})
 	return "Proactive alerts resumed for this chat."
 }
 
 func (m *Monitor) cmdSubscribe(chatID int64) string {
-	pref := m.preference(chatID)
-	pref.Subscribed = true
-	m.setPreference(chatID, pref)
+	m.updatePreference(chatID, func(pref *chatPreference) {
+		pref.Subscribed = true
+	})
 	return "This chat is subscribed to proactive StarNexus alerts."
 }
 
 func (m *Monitor) cmdUnsubscribe(chatID int64) string {
-	pref := m.preference(chatID)
-	pref.Subscribed = false
-	m.setPreference(chatID, pref)
+	m.updatePreference(chatID, func(pref *chatPreference) {
+		pref.Subscribed = false
+	})
 	return "This chat is unsubscribed from proactive alerts. Commands still work."
 }
 
@@ -702,15 +702,16 @@ func (m *Monitor) cmdDaily(chatID int64, args []string) string {
 		return "Daily analytics summary is off. Use /daily on to enable it."
 	}
 
-	pref := m.preference(chatID)
 	switch strings.ToLower(args[0]) {
 	case "on", "yes", "true", "1":
-		pref.DailySummary = true
-		m.setPreference(chatID, pref)
+		m.updatePreference(chatID, func(pref *chatPreference) {
+			pref.DailySummary = true
+		})
 		return "Daily analytics summary enabled for this chat."
 	case "off", "no", "false", "0":
-		pref.DailySummary = false
-		m.setPreference(chatID, pref)
+		m.updatePreference(chatID, func(pref *chatPreference) {
+			pref.DailySummary = false
+		})
 		return "Daily analytics summary disabled for this chat."
 	default:
 		return "Usage: /daily on|off"
@@ -740,7 +741,11 @@ func (m *Monitor) cmdReport() string {
 	}
 	req.Header.Set("Authorization", "Bearer "+m.token)
 
-	resp, err := m.client.Do(req)
+	// The server builds this report synchronously, including a Mistral
+	// call with a 30 s budget — the shared 10 s client would time out on
+	// nearly every AI-enabled report.
+	reportClient := &http.Client{Timeout: 45 * time.Second}
+	resp, err := reportClient.Do(req)
 	if err != nil {
 		return fmt.Sprintf("Failed to fetch report: %v", err)
 	}
@@ -911,8 +916,9 @@ func (m *Monitor) dailySummary() {
 			log.Printf("Failed to send daily summary to %d: %v", chatID, err)
 			continue
 		}
-		pref.LastDailySummaryAt = time.Now().Unix()
-		m.setPreference(chatID, pref)
+		m.updatePreference(chatID, func(pref *chatPreference) {
+			pref.LastDailySummaryAt = time.Now().Unix()
+		})
 	}
 }
 
@@ -949,6 +955,23 @@ func (m *Monitor) setPreference(chatID int64, pref chatPreference) {
 	m.prefs[chatID] = pref
 	m.prefMu.Unlock()
 	m.savePreferences()
+}
+
+// updatePreference applies a mutation to the chat's current preference
+// under the lock. The read-copy → (slow work) → setPreference pattern
+// loses updates: a /mute issued while a daily-summary send is in flight
+// would be overwritten by the sender's stale copy.
+func (m *Monitor) updatePreference(chatID int64, mutate func(*chatPreference)) chatPreference {
+	m.prefMu.Lock()
+	pref, ok := m.prefs[chatID]
+	if !ok {
+		pref = defaultPreference()
+	}
+	mutate(&pref)
+	m.prefs[chatID] = pref
+	m.prefMu.Unlock()
+	m.savePreferences()
+	return pref
 }
 
 func defaultPreference() chatPreference {

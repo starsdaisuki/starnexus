@@ -3,7 +3,7 @@ set -euo pipefail
 
 SSH_HOST=""
 NODE_ID=""
-SERVER_SSH="node-a"
+SERVER_SSH="${STARNEXUS_SERVER_SSH:-}"
 DURATION=150
 OUT_DIR="analysis-output"
 LABELS_PATH=""
@@ -13,12 +13,14 @@ PUSH_SERVER_LABEL=1
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/fault-injection.sh --ssh-host node-b --node-id node-b [options]
+  scripts/fault-injection.sh --ssh-host <node-ssh-host> --node-id <node-id> \
+    --server-ssh <server-ssh-alias> [options]
 
 Options:
-  --ssh-host <alias>      SSH config alias for the experimental node.
-  --node-id <id>          StarNexus node id to poll from the server API.
-  --server-ssh <alias>    SSH config alias for the StarNexus server. Default: node-a
+  --ssh-host <alias>      SSH config alias for the experimental node. Required.
+  --node-id <id>          StarNexus node id to poll from the server API. Required.
+  --server-ssh <alias>    SSH config alias for the StarNexus server. Required
+                          unless the STARNEXUS_SERVER_SSH env var is set.
   --duration <seconds>    CPU stress duration. Default: 150, max: 600
   --out-dir <path>        Local output directory for CSV logs. Default: analysis-output
   --labels <path>         JSONL experiment labels path. Default: <out-dir>/experiments.jsonl
@@ -47,6 +49,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SSH_HOST" || -z "$NODE_ID" ]]; then
+  usage >&2
+  exit 2
+fi
+
+if [[ -z "$SERVER_SSH" ]]; then
+  echo "--server-ssh is required (or set STARNEXUS_SERVER_SSH)" >&2
   usage >&2
   exit 2
 fi
@@ -126,18 +134,18 @@ LABEL_JSON="$(jq -c -n \
 echo "$LABEL_JSON" >> "$LABELS_PATH"
 echo "experiment_label=$LABELS_PATH"
 if (( PUSH_SERVER_LABEL )); then
-  # Pass SERVER_LABELS_PATH and the JSON label as positional args on the
-  # remote side so neither value can be expanded as shell syntax — the
-  # remote shell sees them only as $1/$2 of the bash -s reader.
-  ssh "$SERVER_SSH" \
-    'bash -s "$1" "$2"' _ "$SERVER_LABELS_PATH" "$LABEL_JSON" <<'REMOTE_SCRIPT'
-set -euo pipefail
-path="$1"
-label="$2"
-mkdir -p "$(dirname "$path")"
-printf '%s\n' "$label" >> "$path"
-REMOTE_SCRIPT
-  echo "server_experiment_label=${SERVER_SSH}:${SERVER_LABELS_PATH}"
+  # Pipe the JSON via stdin so nothing in its contents can be reparsed by
+  # the remote shell. Earlier variants passed LABEL_JSON through argv
+  # (the `bash -s "$1" "$2"` pattern), which silently dropped the value
+  # because OpenSSH concatenates remote-command args with plain spaces
+  # and the remote `sh -c` has no positional parameters.
+  remote_path_q="$(printf '%q' "$SERVER_LABELS_PATH")"
+  if ! printf '%s\n' "$LABEL_JSON" \
+    | ssh "$SERVER_SSH" "mkdir -p $(printf '%q' "$(dirname "$SERVER_LABELS_PATH")") && cat >> $remote_path_q"; then
+    echo "warn: failed to push server label to ${SERVER_SSH}:${SERVER_LABELS_PATH}" >&2
+  else
+    echo "server_experiment_label=${SERVER_SSH}:${SERVER_LABELS_PATH}"
+  fi
 fi
 
 END_AT=$(( END_EPOCH + 90 ))

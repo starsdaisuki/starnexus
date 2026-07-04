@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST="node-a"
+HOST="${STARNEXUS_SSH_HOST:-}"
 REMOTE_DB="/root/starnexus/starnexus.db"
 BACKUP=""
 YES=0
@@ -9,11 +9,12 @@ YES=0
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/restore-db.sh --backup <file.sqlite.gz|file.sqlite> [options]
+  scripts/restore-db.sh --backup <file.sqlite.gz|file.sqlite> --host <ssh-alias> [options]
 
 Options:
   --backup <path>        Local backup file to restore. Required.
-  --host <ssh-alias>     SSH host for the primary StarNexus server. Default: node-a
+  --host <ssh-alias>     SSH host for the primary StarNexus server. Required
+                         unless the STARNEXUS_SSH_HOST env var is set.
   --remote-db <path>     Remote SQLite database path. Default: /root/starnexus/starnexus.db
   --yes                  Do not prompt for confirmation.
   -h, --help             Show this help.
@@ -46,6 +47,11 @@ done
 
 if [[ -z "$BACKUP" ]]; then
   err "--backup is required"
+  usage
+  exit 1
+fi
+if [[ -z "$HOST" ]]; then
+  err "--host is required (or set STARNEXUS_SSH_HOST)"
   usage
   exit 1
 fi

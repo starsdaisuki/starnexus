@@ -76,7 +76,7 @@ configs:
       port: 8900
       db_path: "/app/data/starnexus.db"
       api_token: "sandbox-token-change-me"
-      web_dir: "/app/web/public"
+      web_dir: ""
       node_locations_path: ""
       experiment_labels_path: ""
       agent_binary_path: ""

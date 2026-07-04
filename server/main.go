@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"log"
 	"net/http"
@@ -41,16 +42,13 @@ func main() {
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			log.Fatalf("Failed to load config: %v\nCreate one from config.yaml.example, or set STARNEXUS_API_TOKEN (plus optional STARNEXUS_PORT / STARNEXUS_DB_PATH) to run without a config file.", err)
+		}
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	schemaPath := "schema.sql"
-	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
-		exe, _ := os.Executable()
-		schemaPath = filepath.Join(filepath.Dir(exe), "schema.sql")
-	}
-
-	database, err := db.Open(cfg.DBPath, schemaPath)
+	database, err := db.OpenWithSchema(cfg.DBPath, resolveSchema())
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -83,28 +81,61 @@ func main() {
 	server.SetReportGenerator(scheduler)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("StarNexus server starting on %s", addr)
-	if err := http.ListenAndServe(addr, server); err != nil {
+	httpServer := &http.Server{
+		Addr:              addr,
+		Handler:           server,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
 
-func resolveWebDir(configured string) string {
-	candidates := []string{}
-	if configured != "" {
-		candidates = append(candidates, configured)
-	}
-	candidates = append(candidates, "../web/public", "./web")
+//go:embed schema.sql
+var embeddedSchema string
 
-	for _, candidate := range candidates {
-		if candidate == "" {
-			continue
+// resolveSchema prefers an on-disk schema.sql (next to the working
+// directory or the binary) so local hotfixes still work, and falls
+// back to the schema embedded at build time so a deployed binary has
+// no file dependency.
+func resolveSchema() string {
+	for _, candidate := range []string{"schema.sql", filepath.Join(executableDir(), "schema.sql")} {
+		if data, err := os.ReadFile(candidate); err == nil {
+			return string(data)
 		}
+	}
+	return embeddedSchema
+}
+
+func executableDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	return filepath.Dir(exe)
+}
+
+// resolveWebDir returns a directory to serve the frontend from, or ""
+// to serve the copy embedded in the binary. An explicit web_dir that
+// does not exist is a config mistake worth surfacing rather than
+// silently masking with the embedded copy.
+func resolveWebDir(configured string) string {
+	if configured != "" {
+		if info, err := os.Stat(configured); err == nil && info.IsDir() {
+			return configured
+		}
+		log.Printf("Configured web_dir %q not found — serving the embedded frontend instead", configured)
+		return ""
+	}
+	for _, candidate := range []string{"../web/public", "./web"} {
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
 			return candidate
 		}
 	}
-
-	return configured
+	return ""
 }
 
 // buildAlertFunc creates an alert function that sends messages to the Telegram bot

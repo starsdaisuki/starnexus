@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST="node-a"
+HOST="${STARNEXUS_SSH_HOST:-}"
 REMOTE_DB="/root/starnexus/starnexus.db"
 REMOTE_OUT_DIR="/root/starnexus/backups"
 MINUTE="20"
@@ -12,10 +12,11 @@ SKIP_VERIFY=0
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/install-backup-cron.sh [options]
+  scripts/install-backup-cron.sh --host <ssh-alias> [options]
 
 Options:
-  --host <ssh-alias>       SSH host for the primary StarNexus server. Default: node-a
+  --host <ssh-alias>       SSH host for the primary StarNexus server. Required
+                           unless the STARNEXUS_SSH_HOST env var is set.
   --remote-db <path>       Remote SQLite database path. Default: /root/starnexus/starnexus.db
   --remote-out-dir <path>  Backup directory on the primary server. Default: /root/starnexus/backups
   --minute <0-59>          Cron minute. Default: 20
@@ -48,6 +49,12 @@ while [[ $# -gt 0 ]]; do
     *) err "unexpected argument: $1"; usage; exit 1 ;;
   esac
 done
+
+if [[ -z "$HOST" ]]; then
+  err "--host is required (or set STARNEXUS_SSH_HOST)"
+  usage
+  exit 1
+fi
 
 for pair in "minute:$MINUTE:0:59" "hour:$HOUR:0:23" "keep:$KEEP:1:3650"; do
   IFS=: read -r name value min max <<< "$pair"

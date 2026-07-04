@@ -3,6 +3,7 @@ package probe
 import (
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/starsdaisuki/starnexus/agent/internal/config"
@@ -15,12 +16,25 @@ type LinkResult struct {
 	PacketLoss   float64 `json:"packet_loss"`
 }
 
-// ProbeAll probes each target via TCP connect and returns results.
+// ProbeAll probes all targets concurrently via TCP connect. Serial
+// probing costs ~16 s per unreachable target (5 probes × 3 s timeout),
+// which with a few dead peers would stretch the report cycle past the
+// server's 90 s offline threshold — marking the *probing* node offline
+// just because its peers are down.
 func ProbeAll(targets []config.ProbeTarget) []LinkResult {
-	var results []LinkResult
-	for _, t := range targets {
-		results = append(results, tcpProbe(t))
+	if len(targets) == 0 {
+		return nil
 	}
+	results := make([]LinkResult, len(targets))
+	var wg sync.WaitGroup
+	for i, t := range targets {
+		wg.Add(1)
+		go func(i int, t config.ProbeTarget) {
+			defer wg.Done()
+			results[i] = tcpProbe(t)
+		}(i, t)
+	}
+	wg.Wait()
 	return results
 }
 

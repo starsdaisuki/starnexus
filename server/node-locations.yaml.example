@@ -1,15 +1,10 @@
 nodes:
-  - id: "node-c"
-    latitude: 35.68
-    longitude: 139.75
-    note: "Replace with your exact rack or PoP coordinate when known."
-
-  - id: "node-a"
+  - id: "tokyo-vps-1"
     latitude: 35.6762
     longitude: 139.6503
     note: "Replace with your exact rack or PoP coordinate when known."
 
-  - id: "node-b"
-    latitude: 35.68
-    longitude: 139.75
+  - id: "sg-vps-1"
+    latitude: 1.3521
+    longitude: 103.8198
     note: "Replace with your exact rack or PoP coordinate when known."

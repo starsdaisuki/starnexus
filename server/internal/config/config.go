@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -25,30 +26,55 @@ type Config struct {
 }
 
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
 	cfg := &Config{
 		Port:                    8900,
 		DBPath:                  "./starnexus.db",
-		WebDir:                  "./web",
 		ExperimentLabelsPath:    "./analysis-output/experiments.jsonl",
 		OfflineThresholdSeconds: 90,
 	}
 
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(cfg); err != nil {
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		decoder := yaml.NewDecoder(bytes.NewReader(data))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(cfg); err != nil {
+			return nil, err
+		}
+	case os.IsNotExist(err) && os.Getenv("STARNEXUS_API_TOKEN") != "":
+		// Config file is optional when the token comes from the
+		// environment — lets `docker run -e STARNEXUS_API_TOKEN=…`
+		// work with no mounted config at all.
+	default:
 		return nil, err
 	}
+
+	applyEnvOverrides(cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
+}
+
+// applyEnvOverrides lets container users configure the common fields
+// without editing the YAML. Environment wins over file values.
+func applyEnvOverrides(cfg *Config) {
+	if v := os.Getenv("STARNEXUS_API_TOKEN"); v != "" {
+		cfg.APIToken = v
+	}
+	if v := os.Getenv("STARNEXUS_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Port = port
+		}
+	}
+	if v := os.Getenv("STARNEXUS_DB_PATH"); v != "" {
+		cfg.DBPath = v
+	}
+	if v := os.Getenv("STARNEXUS_WEB_DIR"); v != "" {
+		cfg.WebDir = v
+	}
 }
 
 func (c *Config) Validate() error {

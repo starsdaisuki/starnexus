@@ -98,7 +98,7 @@ This avoids over-counting every anomaly as a real incident.
 The project includes a safe CPU-only fault-injection wrapper:
 
 ```bash
-scripts/fault-injection.sh --ssh-host node-b --node-id node-b --duration 150
+scripts/fault-injection.sh --ssh-host <node-ssh-host> --node-id <node-id> --duration 150
 ```
 
 It:
@@ -161,7 +161,7 @@ Agents now have a disk-backed metric report queue:
 Existing agent update:
 
 ```bash
-./scripts/sync-agent.sh node-c node-b
+./scripts/sync-agent.sh <vps-alias-1> <vps-alias-2>
 ```
 
 New node onboarding:
@@ -181,11 +181,11 @@ New node onboarding:
 At the time this status document was written:
 
 - Primary server: `node-a`.
-- Monitored nodes: `node-a`, `node-c`, `node-b`.
+- Monitored nodes: `node-a`, `node-c` (`node-b` decommissioned 2026-07; its labelled experiments are retained as ground-truth data).
 - Server service: active.
 - Bot service: active.
-- Agents: active on all three nodes.
-- Dashboard reports 3 nodes online.
+- Agents: active on all monitored nodes.
+- Dashboard reports 2 nodes online.
 
 The dashboard is accessed through an SSH tunnel to the Go server, with port `8900` kept private.
 

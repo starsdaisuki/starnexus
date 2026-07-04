@@ -23,13 +23,29 @@ Required:
 
 Optional:
 
-- `web_dir`: static dashboard directory.
+- `web_dir`: on-disk dashboard directory for frontend development. Leave
+  empty to serve the dashboard embedded in the binary (default).
 - `node_locations_path`: manual node coordinate overrides.
 - `experiment_labels_path`: JSONL labels used by Experiment View.
 - `agent_binary_path`: binary served by `/download/agent`.
 - `geoip_db_path`: GeoIP DB served by `/download/geoip`.
 - `bot_token` and `bot_chat_ids`: server-side analytics alerts. Configure both or neither.
 - `mistral_api_key`: optional daily report AI key. Remove the placeholder if unused.
+
+### Environment variable overrides
+
+Environment values win over the YAML file. With `STARNEXUS_API_TOKEN`
+set, the server starts without any config file at all — useful for
+`docker run`:
+
+- `STARNEXUS_API_TOKEN` — the API token (the only required setting).
+- `STARNEXUS_PORT` — HTTP port.
+- `STARNEXUS_DB_PATH` — SQLite database path.
+- `STARNEXUS_WEB_DIR` — on-disk frontend override.
+
+```bash
+docker run -p 8900:8900 -e STARNEXUS_API_TOKEN=$(openssl rand -hex 32) starnexus-server
+```
 
 ## Agent
 

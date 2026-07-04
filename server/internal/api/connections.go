@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -162,17 +164,36 @@ func connectionSourceKey(conn ConnInfo) string {
 	return conn.SrcIP + "|" + conn.Protocol + "|" + strconv.Itoa(conn.LocalPort)
 }
 
-var cloudflarePrefixes = []string{
-	"173.245.", "103.21.", "103.22.", "103.31.", "141.101.", "108.162.",
-	"190.93.", "188.114.", "197.234.", "198.41.", "162.158.", "104.16.",
-	"104.17.", "104.18.", "104.19.", "104.20.", "104.21.", "104.22.",
-	"104.23.", "104.24.", "104.25.", "104.26.", "104.27.", "104.28.",
-	"104.29.", "104.30.", "104.31.", "172.64.", "131.0.",
+// Cloudflare's published IPv4 ranges (https://www.cloudflare.com/ips-v4).
+// Proper CIDR matching matters here: the old string-prefix list both
+// over-matched (Cloudflare owns 103.21.244.0/22, not all of 103.21.x)
+// and under-matched (172.64.0.0/13 spans 172.64–71, not just 172.64.x).
+var cloudflareCIDRs = mustParseCIDRs(
+	"173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+	"141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+	"197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+	"104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+)
+
+func mustParseCIDRs(cidrs ...string) []*net.IPNet {
+	nets := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("invalid built-in CIDR %q: %v", cidr, err))
+		}
+		nets = append(nets, ipNet)
+	}
+	return nets
 }
 
 func isCloudflareIP(ip string) bool {
-	for _, prefix := range cloudflarePrefixes {
-		if len(ip) >= len(prefix) && ip[:len(prefix)] == prefix {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, ipNet := range cloudflareCIDRs {
+		if ipNet.Contains(parsed) {
 			return true
 		}
 	}

@@ -12,10 +12,11 @@ set -euo pipefail
 # What this does:
 #   1. Prompts for all secrets and node info
 #   2. Builds all three binaries (linux/amd64)
-#   3. Uploads binaries, schema, web files to the VPS
+#   3. Uploads binaries to the VPS (web UI + DB schema are embedded
+#      in the server binary — nothing else to upload)
 #   4. Downloads GeoIP database on the VPS
 #   5. Generates all config files
-#   6. Sets up iptables firewall rules
+#   6. Sets up firewall rules (ufw if active, else iptables + persist)
 #   7. Creates and starts systemd services
 #   8. Verifies everything is running
 # ============================================================
@@ -90,10 +91,10 @@ read -rp "Display name (e.g. Node A): " NODE_NAME
 read -rp "Provider (e.g. Provider A, Aliyun, AWS): " PROVIDER
 [[ -z "$PROVIDER" ]] && PROVIDER="Unknown"
 
-read -rp "Latitude (0 = auto-detect via ip-api.com): " LATITUDE
+read -rp "Latitude (leave empty to auto-detect from the node's public IP): " LATITUDE
 LATITUDE=${LATITUDE:-0}
 
-read -rp "Longitude (0 = auto-detect): " LONGITUDE
+read -rp "Longitude (leave empty to auto-detect from the node's public IP): " LONGITUDE
 LONGITUDE=${LONGITUDE:-0}
 
 read -rp "SSH port of this server (default 22): " SSH_PORT
@@ -112,7 +113,7 @@ read -rp "Add a probe target to another VPS? (y/N): " ADD_PROBE
 PROBE_YAML=""
 PROBE_VPS_IP=""
 if [[ "$ADD_PROBE" =~ ^[yY] ]]; then
-  read -rp "  Target node ID (e.g. node-b): " PROBE_NODE_ID
+  read -rp "  Target node ID (e.g. tokyo-vps-1): " PROBE_NODE_ID
   read -rp "  Target VPS IP: " PROBE_HOST
   read -rp "  Target TCP port (e.g. SSH port, default 22): " PROBE_PORT
   PROBE_PORT=${PROBE_PORT:-22}
@@ -153,18 +154,21 @@ echo "============================================================"
 echo "  Uploading to $SSH_HOST..."
 echo "============================================================"
 
-ssh "$SSH_HOST" "mkdir -p ~/starnexus/{web,bin}"
+ssh "$SSH_HOST" "mkdir -p ~/starnexus/bin"
 
 echo "  Uploading binaries..."
-scp -q "$BIN_DIR/starnexus-server" "$BIN_DIR/starnexus-agent" "$BIN_DIR/starnexus-bot" "$SSH_HOST:~/starnexus/"
+scp -q "$BIN_DIR/starnexus-server" "$BIN_DIR/starnexus-agent" "$SSH_HOST:~/starnexus/"
+if [[ -n "$TG_TOKEN" ]]; then
+  scp -q "$BIN_DIR/starnexus-bot" "$SSH_HOST:~/starnexus/"
+else
+  echo "  (bot binary skipped — no Telegram token)"
+fi
 scp -q "$BIN_DIR/starnexus-agent" "$SSH_HOST:~/starnexus/bin/"
-
-echo "  Uploading schema and web files..."
-scp -q "$SCRIPT_DIR/server/schema.sql" "$SSH_HOST:~/starnexus/"
-scp -qr "$SCRIPT_DIR/web/public/"* "$SSH_HOST:~/starnexus/web/"
+# Note: web UI and DB schema are embedded in the server binary — no upload needed.
 
 echo "  Downloading GeoIP database on server..."
-ssh "$SSH_HOST" 'cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/ && printf "  GeoIP: %s\n" "$(ls -lh GeoLite2-City.mmdb | awk "{print \$5}")"'
+ssh "$SSH_HOST" 'cd ~/starnexus && curl -sSLO https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb && cp GeoLite2-City.mmdb bin/ && printf "  GeoIP: %s\n" "$(ls -lh GeoLite2-City.mmdb | awk "{print \$5}")"' \
+  || { echo "  WARN: GeoIP download failed — connection map will have no geo data"; }
 echo ""
 
 # ============================================================
@@ -182,7 +186,7 @@ ssh "$SSH_HOST" "cat > ~/starnexus/config.yaml" << YAML
 port: 8900
 db_path: "./starnexus.db"
 api_token: "$API_TOKEN"
-web_dir: "./web"
+web_dir: ""
 offline_threshold_seconds: 90
 agent_binary_path: "./bin/starnexus-agent"
 geoip_db_path: "./bin/GeoLite2-City.mmdb"
@@ -211,9 +215,11 @@ $PROBE_YAML
 YAML
 echo "  agent-config.yaml"
 
-# Bot config
-# shellcheck disable=SC2087
-ssh "$SSH_HOST" "cat > ~/starnexus/bot-config.yaml" << YAML
+# Bot config — only when a Telegram token was provided; the bot refuses
+# to start without one and would crash-loop under systemd.
+if [[ -n "$TG_TOKEN" ]]; then
+  # shellcheck disable=SC2087
+  ssh "$SSH_HOST" "cat > ~/starnexus/bot-config.yaml" << YAML
 telegram_token: "$TG_TOKEN"
 chat_ids:
 $CHAT_IDS_YAML
@@ -222,7 +228,10 @@ api_token: "$API_TOKEN"
 poll_interval_seconds: 30
 heartbeat_interval_seconds: 300
 YAML
-echo "  bot-config.yaml"
+  echo "  bot-config.yaml"
+else
+  echo "  bot-config.yaml skipped (no Telegram token)"
+fi
 echo ""
 
 # ============================================================
@@ -233,20 +242,43 @@ echo "============================================================"
 echo "  Configuring firewall..."
 echo "============================================================"
 
-# Build firewall commands
-FW_CMDS="iptables -C INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT"
+# Prefer ufw when it is installed and active; otherwise fall back to
+# iptables and persist the rules with netfilter-persistent so they
+# survive a reboot (same branch as onboard-node.sh / manage-node.sh).
+if ssh "$SSH_HOST" "command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q 'Status: active'" 2>/dev/null; then
+  UFW_CMDS=""
+  if [[ -n "$PROBE_VPS_IP" ]]; then
+    UFW_CMDS="ufw allow from $PROBE_VPS_IP to any port 8900 comment 'starnexus-probe'; "
+    UFW_CMDS="${UFW_CMDS}ufw allow from $PROBE_VPS_IP proto icmp comment 'starnexus-probe-icmp' 2>/dev/null || true; "
+  fi
+  # Deny everything else on the API port (loopback is exempt in ufw).
+  UFW_CMDS="${UFW_CMDS}ufw deny 8900/tcp comment 'starnexus-api'"
+  ssh "$SSH_HOST" "$UFW_CMDS" 2>/dev/null || true
+  echo "  ufw rules applied:"
+  ssh "$SSH_HOST" "ufw status | grep 8900" || true
+else
+  # Build firewall commands
+  FW_CMDS="iptables -C INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp -s 127.0.0.1 --dport 8900 -j ACCEPT"
 
-if [[ -n "$PROBE_VPS_IP" ]]; then
-  FW_CMDS="$FW_CMDS; iptables -C INPUT -p tcp -s $PROBE_VPS_IP --dport 8900 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp -s $PROBE_VPS_IP --dport 8900 -j ACCEPT"
-  FW_CMDS="$FW_CMDS; iptables -C INPUT -p icmp -s $PROBE_VPS_IP -j ACCEPT 2>/dev/null || iptables -I INPUT -p icmp -s $PROBE_VPS_IP -j ACCEPT"
+  if [[ -n "$PROBE_VPS_IP" ]]; then
+    FW_CMDS="$FW_CMDS; iptables -C INPUT -p tcp -s $PROBE_VPS_IP --dport 8900 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp -s $PROBE_VPS_IP --dport 8900 -j ACCEPT"
+    FW_CMDS="$FW_CMDS; iptables -C INPUT -p icmp -s $PROBE_VPS_IP -j ACCEPT 2>/dev/null || iptables -I INPUT -p icmp -s $PROBE_VPS_IP -j ACCEPT"
+  fi
+
+  # Add DROP rule at the end (only if not already present)
+  FW_CMDS="$FW_CMDS; iptables -C INPUT -p tcp --dport 8900 -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 8900 -j DROP"
+
+  # Persist across reboots when netfilter-persistent is available
+  FW_CMDS="$FW_CMDS; if command -v netfilter-persistent >/dev/null 2>&1; then netfilter-persistent save >/dev/null 2>&1 || true; fi"
+
+  ssh "$SSH_HOST" "$FW_CMDS" 2>/dev/null || true
+  echo "  iptables rules applied:"
+  ssh "$SSH_HOST" "iptables -L INPUT -n | grep 8900"
+  if ! ssh "$SSH_HOST" "command -v netfilter-persistent >/dev/null 2>&1"; then
+    echo "  WARN: netfilter-persistent not installed — iptables rules will not survive a reboot"
+    echo "        (apt install iptables-persistent, or add rules to your firewall manager)"
+  fi
 fi
-
-# Add DROP rule at the end (only if not already present)
-FW_CMDS="$FW_CMDS; iptables -C INPUT -p tcp --dport 8900 -j DROP 2>/dev/null || iptables -A INPUT -p tcp --dport 8900 -j DROP"
-
-ssh "$SSH_HOST" "$FW_CMDS" 2>/dev/null || true
-echo "  iptables rules applied:"
-ssh "$SSH_HOST" "iptables -L INPUT -n | grep 8900"
 echo ""
 
 # ============================================================
@@ -291,7 +323,10 @@ RestartSec=5
 WantedBy=multi-user.target
 SVC
 
-cat > /etc/systemd/system/starnexus-bot.service << "SVC"
+systemctl daemon-reload'
+
+if [[ -n "$TG_TOKEN" ]]; then
+  ssh "$SSH_HOST" 'cat > /etc/systemd/system/starnexus-bot.service << "SVC"
 [Unit]
 Description=StarNexus Telegram Bot
 After=network.target starnexus-server.service
@@ -309,7 +344,10 @@ WantedBy=multi-user.target
 SVC
 
 systemctl daemon-reload'
-echo "  Created: starnexus-server, starnexus-agent, starnexus-bot"
+  echo "  Created: starnexus-server, starnexus-agent, starnexus-bot"
+else
+  echo "  Created: starnexus-server, starnexus-agent (bot service skipped — no token)"
+fi
 echo ""
 
 # ============================================================
@@ -325,14 +363,24 @@ systemctl enable --now starnexus-server
 sleep 3
 systemctl enable --now starnexus-agent
 sleep 1
-systemctl enable --now starnexus-bot
+'
+
+BOT_STATUS_CMD=""
+if [[ -n "$TG_TOKEN" ]]; then
+  ssh "$SSH_HOST" 'systemctl enable --now starnexus-bot'
+  BOT_STATUS_CMD='echo "    bot:    $(systemctl is-active starnexus-bot)"'
+else
+  echo "  Telegram bot skipped (no token provided) — rerun with a token or configure manually later"
+fi
+
+ssh "$SSH_HOST" '
 sleep 3
 
 echo ""
 echo "  Service status:"
 echo "    server: $(systemctl is-active starnexus-server)"
 echo "    agent:  $(systemctl is-active starnexus-agent)"
-echo "    bot:    $(systemctl is-active starnexus-bot)"
+'"$BOT_STATUS_CMD"'
 echo ""
 echo "  API test:"
 echo "    $(curl -s http://localhost:8900/api/status)"
@@ -371,4 +419,6 @@ echo ""
 echo "  Logs:"
 echo "    journalctl -u starnexus-server -f"
 echo "    journalctl -u starnexus-agent -f"
-echo "    journalctl -u starnexus-bot -f"
+if [[ -n "$TG_TOKEN" ]]; then
+  echo "    journalctl -u starnexus-bot -f"
+fi

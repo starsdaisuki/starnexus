@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST="node-a"
+HOST="${STARNEXUS_SSH_HOST:-}"
 REMOTE_DB="/root/starnexus/starnexus.db"
 REMOTE_EXPERIMENTS="/root/starnexus/analysis-output/experiments.jsonl"
 BACKUP_DIR="backups"
@@ -14,10 +14,11 @@ FROM_BACKUP=""
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/export-analysis.sh [options]
+  scripts/export-analysis.sh --host <ssh-alias> [options]
 
 Options:
-  --host <ssh-alias>             SSH host for the primary StarNexus server. Default: node-a
+  --host <ssh-alias>             SSH host for the primary StarNexus server. Required
+                                 unless the STARNEXUS_SSH_HOST env var is set.
   --remote-db <path>             Remote SQLite database path. Default: /root/starnexus/starnexus.db
   --remote-experiments <path>    Remote experiment labels path. Default: /root/starnexus/analysis-output/experiments.jsonl
   --from-backup <path.sqlite.gz> Use an existing local backup instead of creating a new one
@@ -54,6 +55,12 @@ while [[ $# -gt 0 ]]; do
     *) err "unexpected argument: $1"; usage; exit 1 ;;
   esac
 done
+
+if [[ -z "$HOST" ]]; then
+  err "--host is required (or set STARNEXUS_SSH_HOST)"
+  usage
+  exit 1
+fi
 
 for pair in "hours:$HOURS:1:87600" "keep-backups:$KEEP_BACKUPS:0:10000" "keep-runs:$KEEP_RUNS:0:10000"; do
   IFS=: read -r name value min max <<< "$pair"

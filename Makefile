@@ -5,9 +5,15 @@ BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 SERVER_LDFLAGS := -X github.com/starsdaisuki/starnexus/server/internal/buildinfo.Version=$(VERSION) -X github.com/starsdaisuki/starnexus/server/internal/buildinfo.Commit=$(COMMIT) -X github.com/starsdaisuki/starnexus/server/internal/buildinfo.BuildTime=$(BUILD_TIME)
 AGENT_LDFLAGS := -X github.com/starsdaisuki/starnexus/agent/internal/buildinfo.Version=$(VERSION) -X github.com/starsdaisuki/starnexus/agent/internal/buildinfo.Commit=$(COMMIT) -X github.com/starsdaisuki/starnexus/agent/internal/buildinfo.BuildTime=$(BUILD_TIME)
 BOT_LDFLAGS := -X github.com/starsdaisuki/starnexus/bot/internal/buildinfo.Version=$(VERSION) -X github.com/starsdaisuki/starnexus/bot/internal/buildinfo.Commit=$(COMMIT) -X github.com/starsdaisuki/starnexus/bot/internal/buildinfo.BuildTime=$(BUILD_TIME)
-.PHONY: build-server build-agent build-bot build-analyze build-bench build-loadtest build-all test check analyze bench figures loadtest export-analysis clean
+.PHONY: sync-web build-server build-agent build-bot build-analyze build-bench build-loadtest build-all test check analyze bench figures loadtest export-analysis clean
 
-build-server:
+# The dashboard is embedded into the server binary from
+# server/internal/webassets/dist, a synced copy of the canonical
+# web/public. TestDistMatchesCanonicalSource fails when they drift.
+sync-web:
+	rsync -a --delete --exclude='.DS_Store' web/public/ server/internal/webassets/dist/
+
+build-server: sync-web
 	cd server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(SERVER_LDFLAGS)" -o ../bin/starnexus-server
 
 build-agent:

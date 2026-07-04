@@ -65,7 +65,7 @@ func TestBenchCLIEndToEnd(t *testing.T) {
 		req.Metrics.LoadAvg = 0.5
 		req.Metrics.Connections = 5
 		req.Metrics.UptimeSeconds = 86400
-		if _, err := database.UpsertReport(req); err != nil {
+		if _, err := database.UpsertReport(req, true); err != nil {
 			t.Fatalf("upsert report ts=%d: %v", ts, err)
 		}
 	}

@@ -41,6 +41,10 @@ bot:
   notifications on state changes. Deliberately simple — no webhooks.
 - **web UI** (`web/public/`): vanilla JS + CSS served as static assets
   either by the Go server (production) or by Cloudflare Pages (demo).
+  In production the frontend is embedded into the server binary via
+  `go:embed` (synced copy under `server/internal/webassets/dist`,
+  guarded by a drift test), so deployments carry no separate web
+  directory; setting `web_dir` overrides it for frontend development.
   The same HTML/JS talks to two different backend shapes (real Go API
   vs. Pages Functions + D1 mock) and feature-detects fields.
 

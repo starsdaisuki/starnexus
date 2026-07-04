@@ -8,10 +8,10 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 RUN addgroup -S starnexus && adduser -S -G starnexus starnexus
 WORKDIR /app
+# The frontend and schema.sql are embedded in the binary; nothing else
+# to copy. Configure via a mounted /app/config.yaml or environment
+# variables (STARNEXUS_API_TOKEN is the only required one).
 COPY --from=builder /out/starnexus-server /app/starnexus-server
-COPY server/schema.sql /app/schema.sql
-COPY web /app/web
-COPY server/config.yaml.example /app/config.yaml
 RUN mkdir -p /app/data && chown -R starnexus:starnexus /app
 USER starnexus
 ENV TZ=UTC

@@ -1,0 +1,47 @@
+{
+  "generated_at": 1776843892,
+  "host": "Apple M-series (local)",
+  "notes": "StarNexus server on temp SQLite with SetMaxOpenConns(1) + busy_timeout 5s; N virtual agents posting every 500ms for 15s.",
+  "runs": [
+    {
+      "agents": 10,
+      "rps": 20.0,
+      "p50_ms": 8,
+      "p95_ms": 15,
+      "p99_ms": 17,
+      "success_rate": 1.0
+    },
+    {
+      "agents": 50,
+      "rps": 99.8,
+      "p50_ms": 16,
+      "p95_ms": 26,
+      "p99_ms": 28,
+      "success_rate": 1.0
+    },
+    {
+      "agents": 100,
+      "rps": 199.6,
+      "p50_ms": 21,
+      "p95_ms": 32,
+      "p99_ms": 35,
+      "success_rate": 1.0
+    },
+    {
+      "agents": 250,
+      "rps": 498.1,
+      "p50_ms": 41,
+      "p95_ms": 59,
+      "p99_ms": 63,
+      "success_rate": 1.0
+    },
+    {
+      "agents": 500,
+      "rps": 992.6,
+      "p50_ms": 71,
+      "p95_ms": 103,
+      "p99_ms": 109,
+      "success_rate": 1.0
+    }
+  ]
+}

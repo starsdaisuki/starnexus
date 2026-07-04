@@ -38,12 +38,30 @@ type ConnCollector struct {
 	listenPorts []int
 
 	// Per-TCP-connection: last known bytes. key = "srcIP:srcPort-localPort"
-	prevConnBytes map[string]uint64
+	prevConnBytes map[string]connSnapshot
 	// Per-IP monotonic total. key = "srcIP-localPort"
-	ipTotal  map[string]uint64
-	ipRate   map[string]float64
-	prevTime time.Time
+	ipTotal      map[string]uint64
+	ipRate       map[string]float64
+	ipLastActive map[string]time.Time
+	prevTime     time.Time
 }
+
+type connSnapshot struct {
+	bytes  uint64
+	seenAt time.Time
+}
+
+const (
+	// connGraceTTL keeps byte counters for connections that briefly
+	// disappear from `ss` output (transient ss failure, port-list flap
+	// from the 5-minute rescan). Without the grace period a reappearing
+	// connection counts as "new" and its entire cumulative byte count
+	// is re-added to the per-IP total — a huge false traffic spike.
+	connGraceTTL = 2 * time.Minute
+	// ipIdleTTL expires per-IP accumulators for sources with no active
+	// connection, bounding memory over months of distinct client IPs.
+	ipIdleTTL = 1 * time.Hour
+)
 
 var bytesRe = regexp.MustCompile(`bytes_sent:(\d+)`)
 var bytesRecvRe = regexp.MustCompile(`bytes_received:(\d+)`)
@@ -53,9 +71,10 @@ func NewConnCollector(geoDBPath string, portLabels map[int]string, proxyProcesse
 		portLabels:     portLabels,
 		proxyProcesses: proxyProcesses,
 		interval:       time.Duration(intervalSec) * time.Second,
-		prevConnBytes:  make(map[string]uint64),
+		prevConnBytes:  make(map[string]connSnapshot),
 		ipTotal:        make(map[string]uint64),
 		ipRate:         make(map[string]float64),
+		ipLastActive:   make(map[string]time.Time),
 	}
 
 	if geoDBPath != "" {
@@ -108,7 +127,7 @@ func (cc *ConnCollector) Collect() []ConnInfo {
 	}
 
 	// Step 1: Read all active connections
-	curConnBytes := make(map[string]uint64)
+	curConnBytes := make(map[string]connSnapshot)
 	type ipInfo struct {
 		srcIP string
 		port  int
@@ -123,21 +142,33 @@ func (cc *ConnCollector) Collect() []ConnInfo {
 			ipKey := fmt.Sprintf("%s-%d", r.srcIP, port)
 			curBytes := r.bytesSent + r.bytesRecv
 
-			curConnBytes[connKey] = curBytes
+			curConnBytes[connKey] = connSnapshot{bytes: curBytes, seenAt: now}
 
 			if _, ok := ipInfos[ipKey]; !ok {
 				ipInfos[ipKey] = &ipInfo{srcIP: r.srcIP, port: port}
 			}
 
 			// Delta = new bytes since last sample for THIS connection
-			prevBytes, seen := cc.prevConnBytes[connKey]
-			if seen && curBytes >= prevBytes {
-				ipDeltas[ipKey] += curBytes - prevBytes
+			prev, seen := cc.prevConnBytes[connKey]
+			if seen && curBytes >= prev.bytes {
+				ipDeltas[ipKey] += curBytes - prev.bytes
 			} else if !seen {
 				// New connection: count all its current bytes as new
 				ipDeltas[ipKey] += curBytes
 			}
-			// If curBytes < prevBytes (counter reset), skip — shouldn't happen with TCP
+			// If curBytes < prev.bytes (counter reset), skip — shouldn't happen with TCP
+		}
+	}
+
+	// Carry over recently-seen connections that are absent this cycle so
+	// a transient `ss` failure doesn't make them look "new" (and their
+	// full byte count get re-counted) when they reappear.
+	for connKey, prev := range cc.prevConnBytes {
+		if _, stillActive := curConnBytes[connKey]; stillActive {
+			continue
+		}
+		if now.Sub(prev.seenAt) <= connGraceTTL {
+			curConnBytes[connKey] = prev
 		}
 	}
 
@@ -154,6 +185,20 @@ func (cc *ConnCollector) Collect() []ConnInfo {
 	for ipKey := range ipInfos {
 		if _, hasDelta := ipDeltas[ipKey]; !hasDelta {
 			cc.ipRate[ipKey] = 0
+		}
+	}
+
+	// Expire per-IP accumulators for sources with no active connection
+	// for a while — without this, months of distinct client IPs grow
+	// the maps without bound.
+	for ipKey := range ipInfos {
+		cc.ipLastActive[ipKey] = now
+	}
+	for ipKey, lastActive := range cc.ipLastActive {
+		if now.Sub(lastActive) > ipIdleTTL {
+			delete(cc.ipLastActive, ipKey)
+			delete(cc.ipTotal, ipKey)
+			delete(cc.ipRate, ipKey)
 		}
 	}
 

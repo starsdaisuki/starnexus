@@ -22,6 +22,7 @@ set -euo pipefail
 # shellcheck disable=SC2034  # reserved for future relative-path resolution
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$HOME/.starnexus.env"
+INSTALL_DIR="${STARNEXUS_INSTALL_DIR:-/root/starnexus}"
 
 PRIMARY_SSH=""
 PRIMARY_IP=""
@@ -62,12 +63,20 @@ ask_required() {
 remote_agent_config() {
   local host="$1"
   ssh "$host" "
-    if [ -f /root/starnexus/agent-config.yaml ]; then
-      echo /root/starnexus/agent-config.yaml
+    if [ -f $INSTALL_DIR/agent-config.yaml ]; then
+      echo $INSTALL_DIR/agent-config.yaml
     else
-      echo /root/starnexus/config.yaml
+      echo $INSTALL_DIR/config.yaml
     fi
   " 2>/dev/null
+}
+
+# Local python3 is needed to render/parse JSON from the server API.
+require_local_python3() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    err "python3 is required on this machine for JSON parsing"
+    exit 1
+  fi
 }
 
 # Read a YAML value from remote file: remote_yaml_val <ssh-host> <file> <key>
@@ -129,7 +138,7 @@ load_or_detect_primary() {
   PRIMARY_SSH_PORT=$(ssh "$PRIMARY_SSH" "ss -tlnp | grep sshd | grep '0.0.0.0' | head -1 | sed 's/.*:\\([0-9]*\\) .*/\\1/'" 2>/dev/null || echo "22")
   ok "Primary SSH port: $PRIMARY_SSH_PORT"
 
-  API_TOKEN=$(ssh "$PRIMARY_SSH" "grep api_token /root/starnexus/config.yaml 2>/dev/null | head -1 | sed 's/.*: *\"\\(.*\\)\"/\\1/'" 2>/dev/null) || true
+  API_TOKEN=$(ssh "$PRIMARY_SSH" "grep api_token $INSTALL_DIR/config.yaml 2>/dev/null | head -1 | sed 's/.*: *\"\\(.*\\)\"/\\1/'" 2>/dev/null) || true
   if [[ -z "$API_TOKEN" ]]; then
     ask_required "API token" API_TOKEN
   else
@@ -145,6 +154,7 @@ load_or_detect_primary() {
 # ============================================================
 
 cmd_list() {
+  require_local_python3
   load_or_detect_primary
 
   echo ""
@@ -198,6 +208,10 @@ cmd_add() {
   # Auto-detect IP and SSH port from the new node
   info "Detecting node IP and SSH port..."
   NODE_IP=$(ssh "$NODE_SSH" "curl -s http://ip-api.com/json/ | python3 -c \"import sys,json; print(json.load(sys.stdin)['query'])\"" 2>/dev/null) || true
+  if [[ -z "$NODE_IP" ]]; then
+    # Fallback when python3 is missing on the node: plain-text IP service.
+    NODE_IP=$(ssh "$NODE_SSH" "curl -fsS --connect-timeout 5 https://api.ipify.org" 2>/dev/null) || true
+  fi
   if [[ -n "$NODE_IP" ]]; then
     ok "Detected IP: $NODE_IP"
   else
@@ -257,28 +271,29 @@ cmd_add() {
     --token $API_TOKEN \
     --node-id \"$NODE_ID\" \
     --node-name \"$NODE_NAME\" \
-    --provider \"$PROVIDER\""
+    --provider \"$PROVIDER\" \
+    --dir \"$INSTALL_DIR\""
   ok "Agent installed"
 
   # --- Step 3: Enable connection tracking + probe to primary ---
   info "Step 3: Enabling connection tracking and probe..."
   ssh "$NODE_SSH" "
     # Only append if not already configured
-    if ! grep -q 'geoip_db_path' /root/starnexus/config.yaml 2>/dev/null; then
-      cat >> /root/starnexus/config.yaml << 'ENDCFG'
+    if ! grep -q 'geoip_db_path' $INSTALL_DIR/config.yaml 2>/dev/null; then
+      cat >> $INSTALL_DIR/config.yaml << 'ENDCFG'
 geoip_db_path: \"./GeoLite2-City.mmdb\"
 connection_report_interval_seconds: 5
 ENDCFG
     fi
     # Add probe_targets if not present
-    if ! grep -q 'probe_targets' /root/starnexus/config.yaml 2>/dev/null; then
-      cat >> /root/starnexus/config.yaml << 'ENDCFG'
+    if ! grep -q 'probe_targets' $INSTALL_DIR/config.yaml 2>/dev/null; then
+      cat >> $INSTALL_DIR/config.yaml << 'ENDCFG'
 probe_targets:
 ENDCFG
     fi
     # Add this specific probe target
-    if ! grep -q '$PRIMARY_NODE_ID' /root/starnexus/config.yaml 2>/dev/null; then
-      cat >> /root/starnexus/config.yaml << 'ENDCFG'
+    if ! grep -q '$PRIMARY_NODE_ID' $INSTALL_DIR/config.yaml 2>/dev/null; then
+      cat >> $INSTALL_DIR/config.yaml << 'ENDCFG'
   - node_id: \"$PRIMARY_NODE_ID\"
     host: \"$PRIMARY_IP\"
     port: $PRIMARY_SSH_PORT
@@ -388,6 +403,7 @@ cmd_remove() {
   echo "============================================================"
   echo ""
 
+  require_local_python3
   load_or_detect_primary
 
   # Show current nodes
@@ -511,8 +527,8 @@ for n in nodes:
   echo ""
 
   if [[ -n "$NODE_SSH" ]]; then
-    echo "  Agent files still at ~/starnexus/ on the node."
-    echo "  To fully clean up: ssh $NODE_SSH 'rm -rf ~/starnexus'"
+    echo "  Agent files still at $INSTALL_DIR/ on the node."
+    echo "  To fully clean up: ssh $NODE_SSH 'rm -rf $INSTALL_DIR'"
   fi
 }
 
@@ -527,6 +543,7 @@ cmd_update_ip() {
   echo "============================================================"
   echo ""
 
+  require_local_python3
   load_or_detect_primary
 
   # Show current nodes

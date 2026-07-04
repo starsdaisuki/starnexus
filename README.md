@@ -75,7 +75,7 @@ Zero SQLITE_BUSY errors at every size after the `SetMaxOpenConns(1) + busy_timeo
  └────────┘   └─────────┘   └─────────┘    └───────────┘
 ```
 
-**Four Go modules** (`server/`, `agent/`, `bot/`, and the canonical web frontend under `web/public/`), all cross-compiled to a single static `linux/amd64` binary each.
+**Four modules** (`server/`, `agent/`, `bot/` in Go, plus the canonical web frontend under `web/public/`), each Go module cross-compiled to a single static `linux/amd64` binary. The frontend and schema are embedded into the server binary at build time (`make sync-web` keeps the embedded copy in sync; a test fails on drift).
 
 ---
 
@@ -130,8 +130,9 @@ Top-left is the operational sweet spot. `fixed_threshold` and `robust_shift` occ
 <details>
 <summary><strong>Web frontend</strong> — dashboard, world map, experiment view</summary>
 
-- Dark world map (Leaflet + CartoDB Dark Matter) with fullscreen and day/night terminator
-- Animated node markers (online/degraded/offline), GeoIP vs manual coordinates distinguished
+- World map (Leaflet, vendored — no CDN dependency) with fullscreen and day/night terminator
+- Switchable basemaps, persisted per browser: CARTO Dark (default), CARTO Light, OpenStreetMap, and 高德/AMap streets + satellite (no API key needed; AMap tiles are reachable from mainland China without a proxy)
+- Animated node markers (online/degraded/offline), GeoIP vs manual coordinates distinguished — agents auto-locate on first start, no manual coordinates required
 - Fleet summary, reliability ledger, Experiment View for labelled fault-injection results
 - Live-connection animation: CDN aggregation, per-IP tooltips, rate-scaled line weight
 - Right-side detail panel with time-series charts, events, incidents, link status, ingress hotspots
@@ -153,6 +154,8 @@ Top-left is the operational sweet spot. `fixed_threshold` and `robust_shift` occ
 
 ## Quick Start
 
+The server is a **single static binary with the dashboard and schema embedded** — a deployment needs the binary plus one config value (the API token).
+
 **Option A — Docker sandbox (recommended for evaluation):**
 
 ```bash
@@ -160,7 +163,12 @@ docker compose up --build
 open http://localhost:8900
 ```
 
-Spins up a server + three containerized agents in under a minute. Uses a static token and ephemeral volume — not for production.
+Spins up a server + three containerized agents in under a minute. Uses a static token and ephemeral volume — not for production. A bare server also works with zero config files:
+
+```bash
+docker build -f server/Dockerfile -t starnexus-server .
+docker run -p 8900:8900 -e STARNEXUS_API_TOKEN=$(openssl rand -hex 32) starnexus-server
+```
 
 **Option B — real VPS deployment:**
 
@@ -171,12 +179,14 @@ make build-all                                     # server / agent / bot / anal
 ssh -L 8900:localhost:8900 <server-host>           # access dashboard via tunnel
 ```
 
-One-liner agent install (after the primary is up):
+One-liner agent install (after the primary is up — first whitelist the new VPS IP on the primary's firewall, see `docs/DEPLOY.md` step 5a):
 
 ```bash
 curl -sSL http://<server>:8900/install.sh | bash -s -- \
   --server http://<server>:8900 --token <api-token> --node-id <node-id> --node-name "<display>"
 ```
+
+The agent geolocates itself on first start (latitude/longitude 0 triggers auto-detection), so new nodes appear on the map with no manual coordinates.
 
 See [`docs/DEPLOY.md`](docs/DEPLOY.md) for full production deployment, [`docs/CONFIG.md`](docs/CONFIG.md) for config fields and `--check-config` validation.
 
@@ -196,13 +206,13 @@ uv run scripts/generate-figures.py
 ./scripts/loadtest-local.sh
 
 # Expand the labelled fault-injection matrix (3 reps × 4 durations, ≈70 min)
-./scripts/fault-injection-matrix.sh --ssh-host node-b --node-id node-b
+./scripts/fault-injection-matrix.sh --ssh-host <node-ssh-host> --node-id <node-id>
 
 # End-to-end integration test
 cd server && go test -run TestEndToEndPipeline -v
 ```
 
-Every number in [`docs/RESULTS.md`](docs/RESULTS.md) is reproducible from these commands plus the exported artifacts under `analysis-output/`.
+Note: `make bench` needs the analysis SQLite DB and `analysis-output/experiments.jsonl`, which are local research artifacts excluded from git. The exported results (the same numbers) are committed under [`web/public/data/`](web/public/data/) — `benchmark.json` and `per_experiment.csv`.
 
 ---
 
@@ -227,7 +237,7 @@ Primary server config is cached in `~/.starnexus.env` on first run.
 | Server / Agent / Bot | Go 1.22+, single static binary, linux/amd64 |
 | Database | SQLite via `modernc.org/sqlite` (pure Go, WAL mode, single-writer pool) |
 | Metrics egress | Prometheus text exposition (zero deps) |
-| Web | Leaflet, vanilla JS, Cloudflare Pages (static demo) |
+| Web | Leaflet (vendored), vanilla JS, embedded in the server binary via go:embed, Cloudflare Pages (static demo) |
 | Analytics | Robust statistics (median / MAD), baseline shift, Mahalanobis composite, Mistral AI |
 | Deployment | systemd, iptables / ufw, SSH tunnel, Docker compose (sandbox) |
 | Load/bench tooling | `starnexus-loadtest`, `starnexus-bench`, matplotlib via `uv` |

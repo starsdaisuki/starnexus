@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST="node-a"
+HOST="${STARNEXUS_SSH_HOST:-}"
 REMOTE_DB="/root/starnexus/starnexus.db"
 OUT_DIR="backups"
 KEEP=0
@@ -9,10 +9,11 @@ KEEP=0
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/backup-db.sh [options]
+  scripts/backup-db.sh --host <ssh-alias> [options]
 
 Options:
-  --host <ssh-alias>     SSH host for the primary StarNexus server. Default: node-a
+  --host <ssh-alias>     SSH host for the primary StarNexus server. Required
+                         unless the STARNEXUS_SSH_HOST env var is set.
   --remote-db <path>     Remote SQLite database path. Default: /root/starnexus/starnexus.db
   --out-dir <path>       Local backup output directory. Default: backups
   --keep <count>         Keep only the newest count backups for this host. Default: keep all
@@ -38,6 +39,12 @@ while [[ $# -gt 0 ]]; do
     *) err "unexpected argument: $1"; usage; exit 1 ;;
   esac
 done
+
+if [[ -z "$HOST" ]]; then
+  err "--host is required (or set STARNEXUS_SSH_HOST)"
+  usage
+  exit 1
+fi
 
 if ! [[ "$KEEP" =~ ^[0-9]+$ ]]; then
   err "--keep must be a non-negative integer"

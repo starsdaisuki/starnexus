@@ -105,7 +105,8 @@ fi
 
 if [[ -z "$API_TOKEN" ]]; then
   info "Reading API token from primary"
-  API_TOKEN=$(ssh "$PRIMARY_SSH" "python3 - <<'PY'
+  if ssh "$PRIMARY_SSH" "command -v python3 >/dev/null 2>&1"; then
+    API_TOKEN=$(ssh "$PRIMARY_SSH" "python3 - <<'PY'
 import re
 from pathlib import Path
 text = Path('/root/starnexus/config.yaml').read_text()
@@ -113,6 +114,11 @@ match = re.search(r'^api_token:\\s*[\"'\"']?([^\"'\"'\\n]+)', text, re.M)
 print(match.group(1).strip() if match else '')
 PY
 ")
+  else
+    # Fallback when python3 is missing on the primary: extract the yaml
+    # value with grep/sed (same approach as manage-node.sh).
+    API_TOKEN=$(ssh "$PRIMARY_SSH" "grep '^api_token:' /root/starnexus/config.yaml 2>/dev/null | head -1 | sed 's/^[^:]*: *\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}.*/\\1/'")
+  fi
   if [[ -z "$API_TOKEN" ]]; then
     err "failed to read API token; pass --api-token"
     exit 1
@@ -172,6 +178,11 @@ ssh "$NODE_SSH" "systemctl is-active --quiet starnexus-agent"
 ok "$NODE_SSH: starnexus-agent is active"
 
 info "Waiting for dashboard report"
+if ! ssh "$PRIMARY_SSH" "command -v python3 >/dev/null 2>&1"; then
+  echo "  note: python3 required on the primary for real JSON parsing — skipping dashboard verification."
+  echo "  Check the dashboard manually for node id: $NODE_ID"
+  exit 0
+fi
 for _ in {1..8}; do
   if ssh "$PRIMARY_SSH" "curl -fsS http://127.0.0.1:8900/api/nodes | python3 -c 'import json,sys; d=json.load(sys.stdin); nodes=d.get(\"nodes\", d if isinstance(d, list) else []); raise SystemExit(0 if any(n.get(\"id\")==\"$NODE_ID\" for n in nodes) else 1)'"; then
     ok "Node appears in dashboard: $NODE_ID"

@@ -1,13 +1,27 @@
+# StarNexus server config. Only api_token must be edited — everything
+# else has a working default. Optional integrations stay disabled while
+# their fields are empty.
 port: 8900
 db_path: "./starnexus.db"
+
+# The only required field. Generate one with: openssl rand -hex 32
 api_token: "CHANGE_ME"
-web_dir: "./web"
-node_locations_path: "./node-locations.yaml"
-experiment_labels_path: "./analysis-output/experiments.jsonl"
+
+# Frontend: leave empty to serve the dashboard embedded in the binary.
+# Point at a directory (e.g. ../web/public) only for frontend dev.
+web_dir: ""
+
+# Optional files — the server runs fine when these are absent.
+node_locations_path: ""
+experiment_labels_path: ""
 agent_binary_path: "./bin/starnexus-agent"
 geoip_db_path: "./bin/GeoLite2-City.mmdb"
+
 offline_threshold_seconds: 90
-bot_token: "BOT_TOKEN_HERE"
-bot_chat_ids:
-  - 123456789
-mistral_api_key: "MISTRAL_KEY_HERE"
+
+# Telegram alerting (optional): set both or neither.
+bot_token: ""
+bot_chat_ids: []
+
+# AI daily reports (optional).
+mistral_api_key: ""

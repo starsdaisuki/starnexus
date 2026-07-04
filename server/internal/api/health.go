@@ -64,7 +64,7 @@ func (s *Server) handleGetHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	components := []componentHealth{
-		pathHealth("web_dir", s.webDir, true),
+		webDirHealth(s.webDir),
 		pathHealth("agent_binary", s.agentBinaryPath, true),
 		pathHealth("geoip_db", s.geoipDBPath, false),
 		pathHealth("experiment_labels", s.experimentLabelsPath, false),
@@ -91,6 +91,16 @@ func (s *Server) handleGetHealth(w http.ResponseWriter, r *http.Request) {
 		Components:   components,
 		ActiveIssues: activeIssues,
 	})
+}
+
+// webDirHealth reports the frontend source: an on-disk override when
+// web_dir is configured, otherwise the copy embedded in the binary
+// (which is always available, so it can never be a health issue).
+func webDirHealth(webDir string) componentHealth {
+	if webDir == "" {
+		return componentHealth{Name: "web_dir", OK: true, Status: "embedded", Path: "embedded in binary", Checked: true}
+	}
+	return pathHealth("web_dir", webDir, true)
 }
 
 func pathHealth(name, path string, required bool) componentHealth {

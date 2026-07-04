@@ -54,11 +54,21 @@ func RunAnomalyDetection(database *db.DB) []AnomalyAlert {
 	for _, nodeID := range nodeIDs {
 		count, err := database.GetRawMetricCount(nodeID, dayAgo)
 		if err != nil || count < minDataPoints {
+			// A node that stopped reporting can never clear its open
+			// anomaly incidents through the normal recovery pass below,
+			// so they would sit open forever next to the node_offline
+			// incident. No data to judge on = recover them.
+			if err == nil {
+				recoverAnomalyIncidents(database, nodeID)
+			}
 			continue
 		}
 
 		points, err := database.GetMetricPoints(nodeID, dayAgo, now)
 		if err != nil || len(points) < minDataPoints {
+			if err == nil {
+				recoverAnomalyIncidents(database, nodeID)
+			}
 			continue
 		}
 
@@ -97,6 +107,24 @@ func RunAnomalyDetection(database *db.DB) []AnomalyAlert {
 	}
 
 	return alerts
+}
+
+// recoverAnomalyIncidents closes all open metric_anomaly incidents for
+// a node that no longer has enough data to evaluate.
+func recoverAnomalyIncidents(database *db.DB, nodeID string) {
+	activeIncidents, err := database.GetNodeActiveIncidents(nodeID, 100)
+	if err != nil {
+		log.Printf("[analytics] active incident lookup failed for %s: %v", nodeID, err)
+		return
+	}
+	for _, incident := range activeIncidents {
+		if incident.Type != "metric_anomaly" {
+			continue
+		}
+		if _, err := database.RecoverIncident(incident.ID); err != nil {
+			log.Printf("[analytics] incident recovery failed for %s: %v", nodeID, err)
+		}
+	}
 }
 
 func buildNodeAlerts(nodeID, nodeName string, detail DetailAnalytics) []AnomalyAlert {

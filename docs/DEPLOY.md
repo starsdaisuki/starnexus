@@ -112,19 +112,18 @@ If you prefer to do it step by step:
 
 #### 4a. Upload files
 
+The dashboard frontend and the SQL schema are embedded in the server
+binary — the binaries are all you upload.
+
 ```bash
 SERVER=root@YOUR_SERVER_IP
 
 # Create directories
-ssh $SERVER "mkdir -p ~/starnexus/{web,bin}"
+ssh $SERVER "mkdir -p ~/starnexus/bin"
 
 # Upload binaries
 scp bin/starnexus-server bin/starnexus-agent bin/starnexus-bot $SERVER:~/starnexus/
 scp bin/starnexus-agent $SERVER:~/starnexus/bin/
-
-# Upload server files
-scp server/schema.sql $SERVER:~/starnexus/
-scp -r web/public/* $SERVER:~/starnexus/web/
 ```
 
 #### 4b. Download GeoIP database
@@ -154,8 +153,9 @@ db_path: "./starnexus.db"
 # Generate with: openssl rand -hex 32
 api_token: "a1b2c3d4e5f6...your-token-here..."
 
-# Frontend files directory.
-web_dir: "./web"
+# Frontend: empty serves the dashboard embedded in the binary.
+# Point at a directory only for frontend development.
+web_dir: ""
 
 # Optional: override node coordinates from one central file.
 # This is useful when you want exact rack / PoP map positions instead of GeoIP estimates.
@@ -235,7 +235,7 @@ connection_report_interval_seconds: 5
 # Link probing: TCP connect to other nodes to measure latency.
 # Uses TCP handshake (not ICMP ping) so it works through firewalls.
 probe_targets:
-  - node_id: "node-b"      # Must match the other node's node_id
+  - node_id: "peer-node-1"      # Must match the other node's node_id
     host: "10.0.0.2"        # IP of the other node
     port: 22                 # TCP port to connect to (SSH port works)
 
@@ -461,7 +461,7 @@ For existing nodes, use the local sync helper instead of manually stopping and c
 
 ```bash
 # From your local repo checkout:
-./scripts/sync-agent.sh node-c node-b
+./scripts/sync-agent.sh <vps-alias-1> <vps-alias-2>
 ```
 
 The script:
@@ -632,6 +632,10 @@ ssh SERVER "systemctl start starnexus-server && sleep 2 && systemctl start starn
 # Update agent on other VPS without changing config:
 ./scripts/sync-agent.sh OTHER_VPS
 ```
+
+Frontend updates ship inside the server binary (build with
+`make build-server`, which first syncs `web/public` into the embedded
+copy) — there is no separate web directory to re-upload.
 
 ### Telegram bot commands
 

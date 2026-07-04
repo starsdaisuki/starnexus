@@ -75,7 +75,7 @@ Increase labelled fault-injection coverage after the incident layer is in place.
 
 Minimum useful matrix:
 
-- 30s, 90s, 150s, and 300s CPU pressure on Provider B.
+- 30s, 90s, 150s, and 300s CPU pressure on a disposable test node.
 - Repeated trials for at least two durations.
 - Verification that stricter anomaly thresholds still detect real pressure.
 - Report detection delay, recovery delay, and false-positive events outside labelled windows.

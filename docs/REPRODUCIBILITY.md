@@ -88,17 +88,21 @@ cd server && go run ./cmd/starnexus-bench \
 
 ### Inputs
 
-- SSH access to a test node (default `node-b` in the wrapper).
+- SSH access to a test node (the wrapper requires explicit `--ssh-host`
+  and `--node-id`; there is no default node).
 - StarNexus server reachable over SSH for label persistence.
 - `jq` installed locally.
+
+Note: the original n=15 experiments ran on node `node-b` (since
+decommissioned).
 
 ### Command
 
 ```bash
 ./scripts/fault-injection-matrix.sh \
-  --ssh-host node-b \
-  --node-id node-b \
-  --server-ssh node-a \
+  --ssh-host <node-ssh-host> \
+  --node-id <node-id> \
+  --server-ssh <server-ssh-alias> \
   --reps 3 \
   --durations "30 60 150 300" \
   --gap 120

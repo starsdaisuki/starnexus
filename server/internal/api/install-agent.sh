@@ -46,13 +46,16 @@ echo "    Name:    $NODE_NAME"
 echo "    Dir:     $INSTALL_DIR"
 echo ""
 
+# Create directory
 mkdir -p "$INSTALL_DIR"
 
+# Download agent binary
 echo "==> Downloading agent binary..."
 curl -sSL "$SERVER_URL/download/agent" -o "$INSTALL_DIR/starnexus-agent"
 chmod +x "$INSTALL_DIR/starnexus-agent"
 echo "    Downloaded: $INSTALL_DIR/starnexus-agent"
 
+# Write config (lat/lng = 0 triggers auto-detect on first run)
 cat > "$INSTALL_DIR/config.yaml" << YAML
 server_url: "$SERVER_URL"
 api_token: "$API_TOKEN"
@@ -68,13 +71,15 @@ queue_flush_batch_size: 120
 YAML
 echo "    Config written: $INSTALL_DIR/config.yaml"
 
+# Download GeoIP database (for connection visualization)
 echo "==> Downloading GeoIP database..."
 if curl -sSL --fail "$SERVER_URL/download/geoip" -o "$INSTALL_DIR/GeoLite2-City.mmdb" 2>/dev/null; then
   echo "    Downloaded: $INSTALL_DIR/GeoLite2-City.mmdb"
 else
-  echo "    GeoIP DB not available (connection tracking disabled)"
+  echo "    GeoIP DB not available on server (connection tracking will be disabled)"
 fi
 
+# Create systemd service
 cat > /etc/systemd/system/starnexus-agent.service << UNIT
 [Unit]
 Description=StarNexus Agent
@@ -93,10 +98,12 @@ WantedBy=multi-user.target
 UNIT
 echo "    Systemd service created"
 
+# Enable and start
 systemctl daemon-reload
 systemctl enable --now starnexus-agent
 sleep 3
 
+# Status check
 if systemctl is-active --quiet starnexus-agent; then
   echo ""
   echo "==> StarNexus Agent installed and running!"

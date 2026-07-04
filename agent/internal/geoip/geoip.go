@@ -11,6 +11,10 @@ import (
 const (
 	apiURL    = "http://ip-api.com/json/"
 	cacheFile = ".geoip-cache.json"
+	// cacheTTL bounds how stale the cached location can get. Without an
+	// expiry, a VPS whose public IP changes keeps reporting the old
+	// IP/coordinates forever until someone deletes the cache file.
+	cacheTTL = 7 * 24 * time.Hour
 )
 
 type GeoResult struct {
@@ -29,7 +33,23 @@ func Detect() (*GeoResult, error) {
 		return cached, nil
 	}
 
-	// Fetch from API
+	geo, err := fetchFromAPI()
+	if err != nil {
+		// A stale location beats no location: fall back to an expired
+		// cache when the API is unreachable.
+		if cached, cacheErr := loadCacheIgnoringTTL(); cacheErr == nil {
+			return cached, nil
+		}
+		return nil, err
+	}
+
+	// Save cache
+	_ = saveCache(geo)
+
+	return geo, nil
+}
+
+func fetchFromAPI() (*GeoResult, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(apiURL)
 	if err != nil {
@@ -52,21 +72,27 @@ func Detect() (*GeoResult, error) {
 		return nil, fmt.Errorf("geoip api returned status: %s", result.Status)
 	}
 
-	geo := &GeoResult{
+	return &GeoResult{
 		Latitude:  result.Lat,
 		Longitude: result.Lon,
 		PublicIP:  result.Query,
 		City:      result.City,
 		Country:   result.Country,
-	}
-
-	// Save cache
-	_ = saveCache(geo)
-
-	return geo, nil
+	}, nil
 }
 
 func loadCache() (*GeoResult, error) {
+	info, err := os.Stat(cacheFile)
+	if err != nil {
+		return nil, err
+	}
+	if time.Since(info.ModTime()) > cacheTTL {
+		return nil, fmt.Errorf("geoip cache expired")
+	}
+	return loadCacheIgnoringTTL()
+}
+
+func loadCacheIgnoringTTL() (*GeoResult, error) {
 	data, err := os.ReadFile(cacheFile)
 	if err != nil {
 		return nil, err

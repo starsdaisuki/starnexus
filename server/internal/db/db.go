@@ -13,6 +13,14 @@ type DB struct {
 }
 
 func Open(dbPath, schemaPath string) (*DB, error) {
+	schema, err := os.ReadFile(schemaPath)
+	if err != nil {
+		return nil, err
+	}
+	return OpenWithSchema(dbPath, string(schema))
+}
+
+func OpenWithSchema(dbPath, schema string) (*DB, error) {
 	conn, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
@@ -22,9 +30,12 @@ func Open(dbPath, schemaPath string) (*DB, error) {
 	// query through a single pooled connection avoids SQLITE_BUSY storms
 	// under concurrent /api/report bursts. Throughput is bounded by the
 	// WAL-mode single-writer anyway, so pooling would only add contention.
+	// Idle time is unbounded: if the pool ever replaced the connection,
+	// the per-connection PRAGMAs below would silently reset to defaults
+	// (busy_timeout=0) on the fresh connection.
 	conn.SetMaxOpenConns(1)
 	conn.SetMaxIdleConns(1)
-	conn.SetConnMaxIdleTime(10 * time.Minute)
+	conn.SetConnMaxIdleTime(0)
 
 	// Durability tuning applied before schema so CREATE statements run
 	// under WAL with the same lock-wait budget as steady-state queries.
@@ -40,12 +51,7 @@ func Open(dbPath, schemaPath string) (*DB, error) {
 	}
 
 	// Run schema
-	schema, err := os.ReadFile(schemaPath)
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if _, err := conn.Exec(string(schema)); err != nil {
+	if _, err := conn.Exec(schema); err != nil {
 		conn.Close()
 		return nil, err
 	}
@@ -287,7 +293,12 @@ type ReportRequest struct {
 }
 
 // UpsertReport inserts or updates a node and its metrics. Returns the old status (or "" if new node).
-func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
+// UpsertReport stores a report's node info, metrics, and links. When
+// live is false (historical replay from an agent's disk queue) the
+// node's current status is preserved: flipping a degraded node to
+// 'online' on every replayed batch would bypass the incident/status
+// bookkeeping and cause status flapping during queue flushes.
+func (d *DB) UpsertReport(r *ReportRequest, live bool) (oldStatus string, err error) {
 	now := time.Now().Unix()
 	metricTime := normalizeCollectedAt(r.CollectedAt, now)
 
@@ -295,10 +306,16 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 	row := d.conn.QueryRow("SELECT status FROM nodes WHERE id = ?", r.NodeID)
 	_ = row.Scan(&oldStatus) // ignore ErrNoRows
 
-	// Upsert node (with ip_address)
+	liveFlag := 0
+	if live {
+		liveFlag = 1
+	}
+
+	// Upsert node (with ip_address). last_seen always advances — even a
+	// replayed batch proves the agent is talking to us right now.
 	_, err = d.conn.Exec(`
 		INSERT INTO nodes (id, name, provider, ip_address, latitude, longitude, location_source, status, last_seen)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 'online', ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? THEN 'online' ELSE 'unknown' END, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			provider = excluded.provider,
@@ -306,9 +323,9 @@ func (d *DB) UpsertReport(r *ReportRequest) (oldStatus string, err error) {
 			latitude = excluded.latitude,
 			longitude = excluded.longitude,
 			location_source = excluded.location_source,
-			status = 'online',
+			status = CASE WHEN ? THEN 'online' ELSE nodes.status END,
 			last_seen = excluded.last_seen
-	`, r.NodeID, r.Name, r.Provider, r.PublicIP, r.Latitude, r.Longitude, normalizeLocationSource(r.LocationSource), now)
+	`, r.NodeID, r.Name, r.Provider, r.PublicIP, r.Latitude, r.Longitude, normalizeLocationSource(r.LocationSource), liveFlag, now, liveFlag)
 	if err != nil {
 		return
 	}
@@ -435,10 +452,30 @@ func (d *DB) SetNodeStatus(nodeID, status string) error {
 }
 
 func (d *DB) DeleteNode(id string) error {
-	_, _ = d.conn.Exec("DELETE FROM node_metrics WHERE node_id = ?", id)
-	_, _ = d.conn.Exec("DELETE FROM links WHERE source_node_id = ? OR target_node_id = ?", id, id)
-	_, _ = d.conn.Exec("DELETE FROM status_history WHERE node_id = ?", id)
-	_, _ = d.conn.Exec("DELETE FROM incidents WHERE node_id = ?", id)
+	// Every table keyed by node_id must be cleaned here, or the ghost
+	// rows outlive the node forever: node_scores in particular is read
+	// by /api/scores without a join against nodes, so a stale score
+	// keeps showing on the dashboard.
+	childDeletes := []struct {
+		query string
+		args  []any
+	}{
+		{"DELETE FROM node_metrics WHERE node_id = ?", []any{id}},
+		{"DELETE FROM links WHERE source_node_id = ? OR target_node_id = ?", []any{id, id}},
+		{"DELETE FROM status_history WHERE node_id = ?", []any{id}},
+		{"DELETE FROM incidents WHERE node_id = ?", []any{id}},
+		{"DELETE FROM node_scores WHERE node_id = ?", []any{id}},
+		{"DELETE FROM events WHERE node_id = ?", []any{id}},
+		{"DELETE FROM metrics_raw WHERE node_id = ?", []any{id}},
+		{"DELETE FROM metrics_hourly WHERE node_id = ?", []any{id}},
+		{"DELETE FROM metrics_daily WHERE node_id = ?", []any{id}},
+		{"DELETE FROM connection_samples WHERE node_id = ?", []any{id}},
+	}
+	for _, del := range childDeletes {
+		if _, err := d.conn.Exec(del.query, del.args...); err != nil {
+			return err
+		}
+	}
 	_, err := d.conn.Exec("DELETE FROM nodes WHERE id = ?", id)
 	return err
 }
@@ -545,9 +582,9 @@ func (d *DB) AggregateHourly(from, to int64) error {
 			node_id,
 			(created_at / 3600) * 3600 AS hour,
 			AVG(cpu_percent), MAX(cpu_percent),
-			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(cpu_percent * cpu_percent) - AVG(cpu_percent) * AVG(cpu_percent)) ELSE 0 END,
+			CASE WHEN COUNT(*) > 1 THEN SQRT(MAX(0, AVG(cpu_percent * cpu_percent) - AVG(cpu_percent) * AVG(cpu_percent))) ELSE 0 END,
 			AVG(memory_percent), MAX(memory_percent),
-			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(memory_percent * memory_percent) - AVG(memory_percent) * AVG(memory_percent)) ELSE 0 END,
+			CASE WHEN COUNT(*) > 1 THEN SQRT(MAX(0, AVG(memory_percent * memory_percent) - AVG(memory_percent) * AVG(memory_percent))) ELSE 0 END,
 			AVG(bandwidth_up), AVG(bandwidth_down),
 			AVG(load_avg),
 			COUNT(*)
@@ -566,9 +603,9 @@ func (d *DB) AggregateDaily(from, to int64) error {
 			node_id,
 			(hour / 86400) * 86400 AS day,
 			AVG(cpu_avg), MAX(cpu_max),
-			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(cpu_avg * cpu_avg) - AVG(cpu_avg) * AVG(cpu_avg)) ELSE 0 END,
+			CASE WHEN COUNT(*) > 1 THEN SQRT(MAX(0, AVG(cpu_avg * cpu_avg) - AVG(cpu_avg) * AVG(cpu_avg))) ELSE 0 END,
 			AVG(mem_avg), MAX(mem_max),
-			CASE WHEN COUNT(*) > 1 THEN SQRT(AVG(mem_avg * mem_avg) - AVG(mem_avg) * AVG(mem_avg)) ELSE 0 END,
+			CASE WHEN COUNT(*) > 1 THEN SQRT(MAX(0, AVG(mem_avg * mem_avg) - AVG(mem_avg) * AVG(mem_avg))) ELSE 0 END,
 			AVG(bw_up_avg), AVG(bw_down_avg),
 			AVG(load_avg),
 			SUM(sample_count) * 30,
@@ -624,14 +661,37 @@ func (d *DB) GetNodeName(nodeID string) string {
 	return name
 }
 
-// GetOnlineSeconds returns seconds a node was online in a time range (based on raw metric count * 30s).
+// GetOnlineSeconds returns seconds a node was online in a time range
+// (based on 30 s report cadence). Raw metrics only survive the 7-day
+// retention window, so windows longer than that must also count the
+// hourly aggregates or availability silently caps at raw-retention /
+// window (≈23% for a 30-day window on a perfectly healthy node).
 func (d *DB) GetOnlineSeconds(nodeID string, from, to int64) (int64, error) {
-	var count int64
+	var rawCount int64
 	err := d.conn.QueryRow(
 		"SELECT COUNT(*) FROM metrics_raw WHERE node_id = ? AND created_at >= ? AND created_at < ?",
 		nodeID, from, to,
-	).Scan(&count)
-	return count * 30, err
+	).Scan(&rawCount)
+	if err != nil {
+		return 0, err
+	}
+	var hourlySamples int64
+	err = d.conn.QueryRow(
+		"SELECT COALESCE(SUM(sample_count), 0) FROM metrics_hourly WHERE node_id = ? AND hour >= ? AND hour < ?",
+		nodeID, from, to,
+	).Scan(&hourlySamples)
+	if err != nil {
+		return 0, err
+	}
+	var dailySeconds int64
+	err = d.conn.QueryRow(
+		"SELECT COALESCE(SUM(online_seconds), 0) FROM metrics_daily WHERE node_id = ? AND day >= ? AND day < ?",
+		nodeID, from, to,
+	).Scan(&dailySeconds)
+	if err != nil {
+		return 0, err
+	}
+	return (rawCount+hourlySamples)*30 + dailySeconds, nil
 }
 
 // GetAvgLinkLatency returns average latency for links involving a node.

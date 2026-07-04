@@ -65,8 +65,8 @@ func Collect() (*Metrics, error) {
 	if elapsed <= 0 {
 		elapsed = 1
 	}
-	m.BandwidthUp = float64(net2.txBytes-net1.txBytes) / 1024.0 / elapsed
-	m.BandwidthDown = float64(net2.rxBytes-net1.rxBytes) / 1024.0 / elapsed
+	m.BandwidthUp = bandwidthKBps(net1.txBytes, net2.txBytes, elapsed)
+	m.BandwidthDown = bandwidthKBps(net1.rxBytes, net2.rxBytes, elapsed)
 
 	// Memory
 	mem, err := readMemory()
@@ -147,6 +147,18 @@ func readCPUSample() (*cpuSample, error) {
 		}
 	}
 	return nil, fmt.Errorf("/proc/stat: no cpu line found")
+}
+
+// bandwidthKBps guards against counters going backwards — the totals
+// are sums across all interfaces, so an interface disappearing between
+// samples (wireguard/pppoe flap, container veth teardown) or a counter
+// reset would otherwise underflow the uint64 subtraction and report
+// ~1.8e16 KB/s, poisoning metrics and firing critical anomaly alerts.
+func bandwidthKBps(before, after uint64, elapsed float64) float64 {
+	if after < before {
+		return 0
+	}
+	return float64(after-before) / 1024.0 / elapsed
 }
 
 func calculateCPUPercent(s1, s2 *cpuSample) float64 {

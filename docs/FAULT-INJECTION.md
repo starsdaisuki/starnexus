@@ -7,7 +7,7 @@ Fault injection is used to create labelled abnormal intervals for evaluating ano
 The repository includes a CPU-only experiment wrapper:
 
 ```bash
-scripts/fault-injection.sh --ssh-host node-b --node-id node-b --duration 150
+scripts/fault-injection.sh --ssh-host <node-ssh-host> --node-id <node-id> --duration 150
 ```
 
 Safety constraints:
