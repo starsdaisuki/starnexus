@@ -41,6 +41,14 @@ const StarMap = (() => {
       options: { attribution: '&copy; 高德地图 AutoNavi', subdomains: '1234', maxZoom: 18 },
       theme: 'light',
     },
+    'amap-dark': {
+      // AMap has no official dark raster tiles; a CSS invert filter on
+      // the tile container fakes one well enough for a dashboard.
+      label: '高德 · Dark',
+      url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      options: { attribution: '&copy; 高德地图 AutoNavi', subdomains: '1234', maxZoom: 18, className: 'tiles-inverted' },
+      theme: 'dark',
+    },
     'amap-satellite': {
       label: '高德 · Satellite',
       url: 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',

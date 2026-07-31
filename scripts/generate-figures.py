@@ -14,6 +14,18 @@ Reads:
   analysis-output/bench/{benchmark.csv,per_experiment.csv}
 
 Writes PNGs to analysis-output/figures/ (or --out).
+
+Node anonymisation
+------------------
+Some figures print `node_id` directly on an axis. Real node IDs usually encode
+the hosting provider and city, which you may not want in figures that get
+committed to a public repo. If a node-alias map exists (default:
+analysis-output/node-aliases.json, which is gitignored), it is applied to every
+node_id / experiment_id before plotting. The file is a flat JSON object:
+
+    {"real-node-id": "node-a", "other-real-id": "node-b"}
+
+Keep that file out of version control; only the aliased figures are published.
 """
 from __future__ import annotations
 
@@ -26,6 +38,35 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_node_aliases(path: Path) -> dict[str, str]:
+    """Load an optional {real_node_id: public_alias} map. Missing file -> no aliasing."""
+    if not path.exists():
+        return {}
+    with path.open() as handle:
+        aliases = json.load(handle)
+    if not isinstance(aliases, dict):
+        raise SystemExit(f"{path}: expected a flat JSON object of node_id -> alias")
+    return {str(k): str(v) for k, v in aliases.items()}
+
+
+def apply_node_aliases(df: pd.DataFrame, aliases: dict[str, str]) -> pd.DataFrame:
+    """Rewrite node_id (exact) and experiment_id / node_name (substring) in place."""
+    if not aliases or df.empty:
+        return df
+    # Longest real ID first so overlapping prefixes cannot be half-replaced.
+    ordered = sorted(aliases.items(), key=lambda kv: len(kv[0]), reverse=True)
+    for column in ("node_id",):
+        if column in df.columns:
+            df[column] = df[column].astype(str).replace(aliases)
+    for column in ("experiment_id", "node_name"):
+        if column in df.columns:
+            series = df[column].astype(str)
+            for real, alias in ordered:
+                series = series.str.replace(real, alias, regex=False)
+            df[column] = series
+    return df
 
 
 def load_experiments(path: Path) -> pd.DataFrame:
@@ -215,6 +256,10 @@ def main() -> None:
                         help="Path to bench output directory")
     parser.add_argument("--out", default=str(ROOT / "analysis-output" / "figures"),
                         help="Output directory for PNGs")
+    parser.add_argument("--node-aliases",
+                        default=str(ROOT / "analysis-output" / "node-aliases.json"),
+                        help="JSON map of real node_id -> public alias, applied before "
+                             "plotting. Silently skipped when the file does not exist.")
     args = parser.parse_args()
 
     analysis_dir = Path(args.analysis)
@@ -233,6 +278,12 @@ def main() -> None:
     experiments = load_experiments(experiments_jsonl)
     bench = pd.read_csv(bench_csv) if bench_csv.exists() else pd.DataFrame()
     per_experiment = pd.read_csv(per_experiment_csv) if per_experiment_csv.exists() else pd.DataFrame()
+
+    aliases = load_node_aliases(Path(args.node_aliases))
+    if aliases:
+        print(f"Applying {len(aliases)} node aliases from {args.node_aliases}")
+        for frame in (metrics, events, experiments, per_experiment):
+            apply_node_aliases(frame, aliases)
 
     fig_metric_timeseries(metrics, experiments, out_dir)
     fig_benchmark_table(bench, out_dir)

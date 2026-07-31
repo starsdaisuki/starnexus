@@ -145,6 +145,24 @@ uv run scripts/generate-figures.py \
 `uv` installs matplotlib + pandas + numpy on demand via PEP 723
 inline-dependency metadata; no venv setup required.
 
+### Node anonymisation
+
+`cpu_timeseries_with_experiments.png` and `event_timeline.png` print
+`node_id` straight onto an axis. Real node IDs tend to encode the hosting
+provider and city, which should not end up in a public repo. If
+`analysis-output/node-aliases.json` exists it is applied to every
+`node_id` / `experiment_id` before plotting:
+
+```json
+{"real-node-id": "node-a", "other-real-id": "node-b"}
+```
+
+`analysis-output/` is gitignored, so the alias map stays local and only the
+aliased figures are published. Use `--node-aliases PATH` to point elsewhere.
+The published data artifacts (`benchmark.json`, `per_experiment.csv`) already
+carry the same `node-a` / `node-b` / `node-c` labels, so keep the map in sync
+with them.
+
 ### Outputs (PNG)
 
 - `cpu_timeseries_with_experiments.png`

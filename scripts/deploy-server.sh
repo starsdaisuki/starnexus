@@ -26,7 +26,7 @@ if [[ $# -lt 1 ]]; then
   echo ""
   echo "Examples:"
   echo "  $0 root@YOUR_SERVER_IP"
-  echo "  $0 node-a                    (uses SSH config alias)"
+  echo "  $0 node-a                  (uses SSH config alias)"
   echo ""
   echo "This deploys the full StarNexus stack (server + agent + bot)"
   echo "to the target VPS. You will be prompted for secrets."
@@ -88,7 +88,7 @@ done
 read -rp "Display name (e.g. Node A): " NODE_NAME
 [[ -z "$NODE_NAME" ]] && NODE_NAME="$NODE_ID"
 
-read -rp "Provider (e.g. Provider A, Aliyun, AWS): " PROVIDER
+read -rp "Provider (e.g. Aliyun, AWS, Vultr): " PROVIDER
 [[ -z "$PROVIDER" ]] && PROVIDER="Unknown"
 
 read -rp "Latitude (leave empty to auto-detect from the node's public IP): " LATITUDE

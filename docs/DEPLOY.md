@@ -485,9 +485,9 @@ To measure latency between nodes, edit `~/starnexus/config.yaml` on the new VPS:
 
 ```yaml
 probe_targets:
-  - node_id: "node-a"        # The server's node_id
-    host: "10.0.0.1"       # The server's IP
-    port: 22                     # Server's SSH port
+  - node_id: "node-a"      # The server's node_id
+    host: "10.0.0.1"     # The server's IP
+    port: 22             # Server's SSH port
 ```
 
 Then restart: `systemctl restart starnexus-agent`

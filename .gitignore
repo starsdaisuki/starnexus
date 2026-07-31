@@ -32,3 +32,16 @@ docs/starnexus-dev-log-*.md
 !docs/dev-log-20260422.md
 
 __pycache__/
+
+# AI 协作上下文：天生装满个人背景，不进公开仓库
+CLAUDE.md
+**/CLAUDE.md
+CLAUDE-*.md
+**/CLAUDE-*.md
+AGENTS.md
+**/AGENTS.md
+AGENTS-*.md
+**/AGENTS-*.md
+.claude/
+.cursorrules
+.github/copilot-instructions.md

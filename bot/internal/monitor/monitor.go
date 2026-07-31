@@ -325,7 +325,7 @@ func (m *Monitor) formatStatusChange(node Node, oldStatus string) string {
 	icon := statusIcon(node.Status)
 	return fmt.Sprintf(
 		"%s <b>%s</b> (%s)\n%s → %s",
-		icon, node.Name, node.Provider,
+		icon, escapeHTML(node.Name), escapeHTML(node.Provider),
 		statusLabel(oldStatus), statusLabel(node.Status),
 	)
 }
@@ -405,7 +405,7 @@ func (m *Monitor) cmdStatus() string {
 	))
 
 	for _, n := range nodes {
-		sb.WriteString(fmt.Sprintf("%s %s (%s)\n", statusIcon(n.Status), n.Name, n.Provider))
+		sb.WriteString(fmt.Sprintf("%s %s (%s)\n", statusIcon(n.Status), escapeHTML(n.Name), escapeHTML(n.Provider)))
 	}
 
 	return sb.String()
@@ -589,7 +589,9 @@ func (m *Monitor) cmdNode(args []string) string {
 		}
 	}
 	if match == nil {
-		return fmt.Sprintf("No node matched %q.", query)
+		// query is raw user input echoed into a parse_mode=HTML message:
+		// "/node <x" would otherwise make Telegram reject the reply.
+		return fmt.Sprintf("No node matched %q.", escapeHTML(query))
 	}
 
 	detail, err := m.fetchNodeDetails(match.ID)

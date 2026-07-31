@@ -38,7 +38,7 @@ services:
     environment:
       TZ: UTC
     configs:
-      - source: agent_tokyo_config
+      - source: agent_demo_config
         target: /app/config.yaml
 
   agent-singapore:
@@ -85,12 +85,12 @@ configs:
       bot_token: ""
       bot_chat_ids: []
       mistral_api_key: ""
-  agent_tokyo_config:
+  agent_demo_config:
     content: |
       server_url: "http://server:8900"
       api_token: "sandbox-token-change-me"
       node_id: "node-demo"
-      node_name: "Tokyo Demo"
+      node_name: "Demo Node"
       provider: "Sandbox"
       latitude: 35.6762
       longitude: 139.6503

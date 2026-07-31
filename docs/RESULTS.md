@@ -242,10 +242,10 @@ active-incident counts by lifecycle state, and server uptime.
 
 During a 90-second CPU test, the incident layer behaved as expected:
 
-- `node_degraded` opened when Provider B crossed status thresholds.
+- `node_degraded` opened when `node-b` crossed status thresholds.
 - `metric_anomaly` opened when the anomaly scheduler observed CPU
   outlier pressure.
-- `node_degraded` recovered after Provider B returned online.
+- `node_degraded` recovered after `node-b` returned online.
 - `metric_anomaly` recovered on the next 5-minute anomaly scheduler
   pass after the signal disappeared.
 

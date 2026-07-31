@@ -48,6 +48,12 @@ func TestUpsertReportDoesNotLetReplayOverwriteLatestLinks(t *testing.T) {
 	database := openTestDB(t)
 
 	now := time.Now().Unix()
+	// node-b must be a registered node — links to unknown targets are
+	// dropped so decommissioned peers cannot resurrect themselves.
+	if _, err := database.UpsertReport(reportRequest("node-b", now, 5), true); err != nil {
+		t.Fatalf("register peer node: %v", err)
+	}
+
 	current := reportRequest("node-a", now, 10)
 	current.Links = []ReportLink{{TargetNodeID: "node-b", LatencyMs: 20, PacketLoss: 0}}
 	if _, err := database.UpsertReport(current, true); err != nil {
@@ -73,6 +79,54 @@ func TestUpsertReportDoesNotLetReplayOverwriteLatestLinks(t *testing.T) {
 	}
 	if latency != 20 || packetLoss != 0 || status != "good" || updatedAt != now {
 		t.Fatalf("expected current link to remain, got latency=%v loss=%v status=%s updated_at=%d", latency, packetLoss, status, updatedAt)
+	}
+}
+
+func TestUpsertReportDropsLinksToUnknownNodes(t *testing.T) {
+	database := openTestDB(t)
+
+	now := time.Now().Unix()
+	report := reportRequest("node-a", now, 10)
+	report.Links = []ReportLink{{TargetNodeID: "retired-node", LatencyMs: -1, PacketLoss: 100}}
+	if _, err := database.UpsertReport(report, true); err != nil {
+		t.Fatalf("upsert report: %v", err)
+	}
+
+	var count int
+	if err := database.conn.QueryRow(
+		"SELECT COUNT(*) FROM links WHERE target_node_id = ?", "retired-node",
+	).Scan(&count); err != nil {
+		t.Fatalf("count links: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected link to unknown node to be dropped, got %d row(s)", count)
+	}
+
+	// And a node deleted after the fact must stay deleted even though the
+	// agent keeps probing it.
+	if _, err := database.UpsertReport(reportRequest("node-b", now, 5), true); err != nil {
+		t.Fatalf("register peer node: %v", err)
+	}
+	linked := reportRequest("node-a", now, 10)
+	linked.Links = []ReportLink{{TargetNodeID: "node-b", LatencyMs: 20, PacketLoss: 0}}
+	if _, err := database.UpsertReport(linked, true); err != nil {
+		t.Fatalf("upsert linked report: %v", err)
+	}
+	if err := database.DeleteNode("node-b"); err != nil {
+		t.Fatalf("delete node: %v", err)
+	}
+	stale := reportRequest("node-a", now+60, 10)
+	stale.Links = []ReportLink{{TargetNodeID: "node-b", LatencyMs: -1, PacketLoss: 100}}
+	if _, err := database.UpsertReport(stale, true); err != nil {
+		t.Fatalf("upsert stale report: %v", err)
+	}
+	if err := database.conn.QueryRow(
+		"SELECT COUNT(*) FROM links WHERE target_node_id = ?", "node-b",
+	).Scan(&count); err != nil {
+		t.Fatalf("count links after delete: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected deleted node's link to stay deleted, got %d row(s)", count)
 	}
 }
 

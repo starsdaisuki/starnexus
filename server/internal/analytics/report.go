@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"fmt"
+	"html"
 	"log"
 	"strings"
 	"time"
@@ -146,11 +147,18 @@ func GenerateDailyReport(database *db.DB, mistralKey string) string {
 
 		analysis, err := CallMistral(mistralKey, aiContext.String())
 		if err != nil {
+			// A bare "unavailable" is indistinguishable from a one-off
+			// timeout, so a revoked key degrades silently for as long as
+			// nobody reads the server log — it hid a dead key for 34 days.
 			log.Printf("[report] Mistral API error: %v", err)
-			sb.WriteString("<i>AI analysis unavailable</i>\n")
+			sb.WriteString(fmt.Sprintf("<i>AI analysis unavailable (%s)</i>\n", html.EscapeString(mistralFailureReason(err))))
 		} else {
+			// The report is delivered to Telegram with parse_mode=HTML.
+			// Mistral writes plain prose, so a single "CPU stays <1%" or
+			// "disk & swap" makes Telegram reject the *whole* message with
+			// 400 can't-parse-entities — the report silently never arrives.
 			sb.WriteString("\xf0\x9f\xa4\x96 <b>AI Analysis</b>\n")
-			sb.WriteString(analysis)
+			sb.WriteString(html.EscapeString(analysis))
 			sb.WriteString("\n")
 		}
 	}
@@ -176,4 +184,27 @@ func ptrStr(s *string) string {
 		return "none"
 	}
 	return *s
+}
+
+// mistralFailureReason turns a Mistral client error into a short phrase
+// fit for the report body. Permanent failures (bad key, quota) must be
+// distinguishable from transient ones at a glance — otherwise a revoked
+// key looks exactly like a slow night.
+func mistralFailureReason(err error) string {
+	if err == nil {
+		return "unknown"
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "returned 401"), strings.Contains(msg, "returned 403"):
+		return "API key rejected"
+	case strings.Contains(msg, "returned 429"):
+		return "rate limited"
+	case strings.Contains(msg, "Client.Timeout"), strings.Contains(msg, "context deadline exceeded"):
+		return "timed out"
+	case strings.Contains(msg, "returned 5"):
+		return "provider error"
+	default:
+		return "request failed"
+	}
 }

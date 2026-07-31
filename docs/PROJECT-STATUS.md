@@ -112,7 +112,7 @@ It:
 
 Current live experiment baseline:
 
-- 3 Provider B CPU-only experiments.
+- 3 `node-b` CPU-only experiments.
 - Detection rate: 100%.
 - Mean detection delay: about 34 seconds.
 - Mean recovery delay: about 24 seconds.
@@ -197,7 +197,6 @@ For a personal VPS monitoring project, StarNexus is now above the typical hobby-
 
 It is closer to a compact production observability system than a static visualization demo.
 
-
 ## Remaining Weak Spots
 
 ### Alert Calibration
@@ -212,7 +211,7 @@ Open questions:
 
 ### Experiment Coverage
 
-Current labelled experiments are CPU-only and limited to Provider B.
+Current labelled experiments are CPU-only and limited to `node-b`.
 
 Needed for stronger evaluation:
 

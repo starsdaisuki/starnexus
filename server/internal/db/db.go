@@ -367,15 +367,21 @@ func (d *DB) UpsertReport(r *ReportRequest, live bool) (oldStatus string, err er
 		} else if link.LatencyMs > 150 || link.PacketLoss > 2 {
 			status = "degraded"
 		}
+		// Only record links whose target is a node the server still knows
+		// about. Agents keep probing decommissioned peers until someone
+		// edits their config, and an unfiltered upsert resurrects the ghost
+		// row on the next report — DeleteNode's cleanup is undone within
+		// seconds and the dead peer reappears in every daily report forever.
 		_, err = d.conn.Exec(`
 			INSERT INTO links (source_node_id, target_node_id, latency_ms, packet_loss, status, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			SELECT ?, ?, ?, ?, ?, ?
+			WHERE EXISTS (SELECT 1 FROM nodes WHERE id = ?)
 			ON CONFLICT(source_node_id, target_node_id) DO UPDATE SET
 				latency_ms = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.latency_ms ELSE links.latency_ms END,
 				packet_loss = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.packet_loss ELSE links.packet_loss END,
 				status = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.status ELSE links.status END,
 				updated_at = CASE WHEN excluded.updated_at >= links.updated_at THEN excluded.updated_at ELSE links.updated_at END
-		`, r.NodeID, link.TargetNodeID, link.LatencyMs, link.PacketLoss, status, metricTime)
+		`, r.NodeID, link.TargetNodeID, link.LatencyMs, link.PacketLoss, status, metricTime, link.TargetNodeID)
 		if err != nil {
 			return
 		}

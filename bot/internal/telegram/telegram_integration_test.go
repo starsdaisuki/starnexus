@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
 
 // fakeTelegram stands in for api.telegram.org. It records every
 // sendMessage call so the test can assert on payloads, and serves a
@@ -206,5 +213,32 @@ func TestSendMessageSurfacesHTTPError(t *testing.T) {
 	err := bot.SendMessage("boom")
 	if err == nil {
 		t.Fatal("expected SendMessage to return an error on 403")
+	}
+}
+
+func TestTransportErrorsRedactBotToken(t *testing.T) {
+	const token = "123456789:TEST_secret-token"
+	transportErr := errors.New("transport failed")
+	bot := NewBot(token, []int64{30001})
+	bot.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, transportErr
+	})}
+
+	sendErr := bot.SendMessageTo(30001, "boom")
+	if sendErr == nil {
+		t.Fatal("expected sendMessage transport error")
+	}
+	_, updateErr := bot.getUpdates()
+	if updateErr == nil {
+		t.Fatal("expected getUpdates transport error")
+	}
+
+	for _, err := range []error{sendErr, updateErr} {
+		if strings.Contains(err.Error(), token) {
+			t.Fatalf("transport error leaked bot token: %q", err)
+		}
+		if !strings.Contains(err.Error(), "[REDACTED]") {
+			t.Fatalf("transport error did not contain redaction marker: %q", err)
+		}
 	}
 }

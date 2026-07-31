@@ -508,6 +508,29 @@ body::before {
   background: #d7e0e6;
 }
 
+/* Fake dark mode for providers without dark tiles (高德 · Dark). */
+.leaflet-tile-pane .tiles-inverted {
+  filter: invert(1) hue-rotate(180deg) saturate(0.6) brightness(0.85) contrast(1.05);
+}
+
+@keyframes conn-dash-flow {
+  to {
+    stroke-dashoffset: -128;
+  }
+}
+
+.conn-flow {
+  animation: conn-dash-flow 5s linear infinite;
+}
+
+.conn-probe-tag {
+  color: #ff4466;
+}
+
+.conn-tree-dim {
+  color: rgba(239, 247, 251, 0.45);
+}
+
 .basemap-light .node-marker {
   background: rgba(6, 14, 20, 0.5);
 }
