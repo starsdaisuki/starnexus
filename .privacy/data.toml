@@ -1,4 +1,125 @@
 version = 1
 
-# No data artifact is approved yet. Real anonymized benchmark outputs must not
-# be labelled synthetic merely to satisfy the publication gate.
+[[data]]
+path = "server/internal/webassets/dist/data/benchmark.json"
+sha256 = "0574fd0a4446b5c012904142ca54514b41cb7711f5dd69aa5e9c67ed6098ab18"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+[[data]]
+path = "server/internal/webassets/dist/data/loadtest.json"
+sha256 = "5a70052cdf0be0c0364234ba3ceb1e163ed83df220335f094fa978b441a06666"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+[[data]]
+path = "server/internal/webassets/dist/data/pairwise_tests.csv"
+sha256 = "d9a69cc316d543800bda5c665fd136cc3dfcb61497ef375b380a207aab19504b"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "server/internal/webassets/dist/data/per_experiment.csv"
+sha256 = "6865e44c45f0c872d0a67a63e31998889f880df888b5fe181d5956ed3d443175"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/benchmark.json"
+sha256 = "0574fd0a4446b5c012904142ca54514b41cb7711f5dd69aa5e9c67ed6098ab18"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/benchmark.json"
+sha256 = "32807dbb963bf18371a8db91897b2551c2dc7f1fd733bf2b0554dd6ee59cd03f"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/benchmark.json"
+sha256 = "c1318274f50598bbce1e8155a4e25a4d59987800c5064d9d1eeb6835f2a7724a"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/loadtest.json"
+sha256 = "5a70052cdf0be0c0364234ba3ceb1e163ed83df220335f094fa978b441a06666"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/pairwise_tests.csv"
+sha256 = "bd30b242dcd898e86b931599384851a711c63b23675c42a3d1297c899d476b04"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/pairwise_tests.csv"
+sha256 = "bf947ab1e38ae508cf65c72616cf56db89f23e34efc1550fba1ceacc01d8d790"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/pairwise_tests.csv"
+sha256 = "d9a69cc316d543800bda5c665fd136cc3dfcb61497ef375b380a207aab19504b"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/per_experiment.csv"
+sha256 = "6865e44c45f0c872d0a67a63e31998889f880df888b5fe181d5956ed3d443175"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/per_experiment.csv"
+sha256 = "8cdc557fcbd488f71623dba38ba3084cbf2a772efd71ea74b6015519fdb2c36c"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true
+
+[[data]]
+path = "web/public/data/per_experiment.csv"
+sha256 = "f5cd3b344a68620c7445d152a8298d124a9a201788de3267694f58596624b628"
+classification = "anonymized-owner-derived"
+reviewed = true
+identifiers_removed = true
+reidentification_reviewed = true
+owner_approved = true

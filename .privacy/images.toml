@@ -1,4 +1,257 @@
 version = 1
 
-# No image is approved yet. Approval requires a human review of the exact
-# path + SHA-256 pair, including pixels and embedded metadata.
+[[images]]
+path = "docs/figures/benchmark_head_to_head.png"
+sha256 = "76fdf1f0db6b0e8b76c68df2d89219f4aa2b36ccd5e95d73140aaf2ef0f1a0b1"
+visual_reviewed = true
+metadata_reviewed = true
+[[images]]
+path = "docs/figures/benchmark_head_to_head.png"
+sha256 = "9c032dc1bc48f1f6fbce0eb3448edbe495240a7da0a9c8b0ad9f01888342eda0"
+visual_reviewed = true
+metadata_reviewed = true
+[[images]]
+path = "docs/figures/benchmark_head_to_head.png"
+sha256 = "cb9892574d70f8c1d2d41042600b1f37244176a84c5d142bf3b3bfdfdd5d4c8b"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/cpu_timeseries_with_experiments.png"
+sha256 = "588e23e5dc6b67edcefcab3201d07ca559693ec894226461db2c7b0fed4f2653"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/delay_vs_duration.png"
+sha256 = "671197c5e6d215ad51cfbca006a0d8ae2e129bc9f58dff5bb532ea09421a46c0"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/delay_vs_duration.png"
+sha256 = "72be3ed8133d1fbf212f16c88dd3590e6b9773785312de3169cecb3c003d24de"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/delay_vs_duration.png"
+sha256 = "93886edc0ac9bcdc2d6a1c7f25381a2cef3cea6923ad018280aec053163e09d1"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/detection_delay_box.png"
+sha256 = "0fb44e3aa0892b50e94506537a51e733d33dc54ce00cfddde60fae7c7930f6c4"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/detection_delay_box.png"
+sha256 = "2b2aa531c584c425717db25987302243944cc53233817a7310a54673770d2df7"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/detection_delay_box.png"
+sha256 = "992390e73a33a0676ccde4682b504d5ce8ee876a7b126754fc3214401e9c1f28"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/event_timeline.png"
+sha256 = "a560b5dca5f3ad70cd3272075e064aad9c99489726f2e2e958d1810b51abdcd1"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/fp_vs_detection_tradeoff.png"
+sha256 = "342f48d944e2851eb1554c8ddb94c882958778147c36909cd434183c5550caae"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/fp_vs_detection_tradeoff.png"
+sha256 = "388195852440c62316756614e11688284f76ccba7bd9f0447a7144b75180252b"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "docs/figures/fp_vs_detection_tradeoff.png"
+sha256 = "b4aa8cd892341dcfe752e7c9faa55e4d170e01be8619747db8bdf33bb6f5b438"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/data/figures/benchmark_head_to_head.png"
+sha256 = "cb9892574d70f8c1d2d41042600b1f37244176a84c5d142bf3b3bfdfdd5d4c8b"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/data/figures/cpu_timeseries_with_experiments.png"
+sha256 = "588e23e5dc6b67edcefcab3201d07ca559693ec894226461db2c7b0fed4f2653"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/data/figures/delay_vs_duration.png"
+sha256 = "671197c5e6d215ad51cfbca006a0d8ae2e129bc9f58dff5bb532ea09421a46c0"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/data/figures/detection_delay_box.png"
+sha256 = "2b2aa531c584c425717db25987302243944cc53233817a7310a54673770d2df7"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/data/figures/event_timeline.png"
+sha256 = "a560b5dca5f3ad70cd3272075e064aad9c99489726f2e2e958d1810b51abdcd1"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/data/figures/fp_vs_detection_tradeoff.png"
+sha256 = "342f48d944e2851eb1554c8ddb94c882958778147c36909cd434183c5550caae"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/vendor/leaflet/images/layers-2x.png"
+sha256 = "066daca850d8ffbef007af00b06eac0015728dee279c51f3cb6c716df7c42edf"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/vendor/leaflet/images/layers.png"
+sha256 = "1dbbe9d028e292f36fcba8f8b3a28d5e8932754fc2215b9ac69e4cdecf5107c6"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/vendor/leaflet/images/marker-icon-2x.png"
+sha256 = "00179c4c1ee830d3a108412ae0d294f55776cfeb085c60129a39aa6fc4ae2528"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/vendor/leaflet/images/marker-icon.png"
+sha256 = "574c3a5cca85f4114085b6841596d62f00d7c892c7b03f28cbfa301deb1dc437"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "server/internal/webassets/dist/vendor/leaflet/images/marker-shadow.png"
+sha256 = "264f5c640339f042dd729062cfc04c17f8ea0f29882b538e3848ed8f10edb4da"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/benchmark_head_to_head.png"
+sha256 = "76fdf1f0db6b0e8b76c68df2d89219f4aa2b36ccd5e95d73140aaf2ef0f1a0b1"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/benchmark_head_to_head.png"
+sha256 = "9c032dc1bc48f1f6fbce0eb3448edbe495240a7da0a9c8b0ad9f01888342eda0"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/benchmark_head_to_head.png"
+sha256 = "cb9892574d70f8c1d2d41042600b1f37244176a84c5d142bf3b3bfdfdd5d4c8b"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/cpu_timeseries_with_experiments.png"
+sha256 = "588e23e5dc6b67edcefcab3201d07ca559693ec894226461db2c7b0fed4f2653"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/delay_vs_duration.png"
+sha256 = "671197c5e6d215ad51cfbca006a0d8ae2e129bc9f58dff5bb532ea09421a46c0"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/delay_vs_duration.png"
+sha256 = "72be3ed8133d1fbf212f16c88dd3590e6b9773785312de3169cecb3c003d24de"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/detection_delay_box.png"
+sha256 = "0fb44e3aa0892b50e94506537a51e733d33dc54ce00cfddde60fae7c7930f6c4"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/detection_delay_box.png"
+sha256 = "2b2aa531c584c425717db25987302243944cc53233817a7310a54673770d2df7"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/detection_delay_box.png"
+sha256 = "992390e73a33a0676ccde4682b504d5ce8ee876a7b126754fc3214401e9c1f28"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/event_timeline.png"
+sha256 = "a560b5dca5f3ad70cd3272075e064aad9c99489726f2e2e958d1810b51abdcd1"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/fp_vs_detection_tradeoff.png"
+sha256 = "342f48d944e2851eb1554c8ddb94c882958778147c36909cd434183c5550caae"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/fp_vs_detection_tradeoff.png"
+sha256 = "388195852440c62316756614e11688284f76ccba7bd9f0447a7144b75180252b"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/data/figures/fp_vs_detection_tradeoff.png"
+sha256 = "b4aa8cd892341dcfe752e7c9faa55e4d170e01be8619747db8bdf33bb6f5b438"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/vendor/leaflet/images/layers-2x.png"
+sha256 = "066daca850d8ffbef007af00b06eac0015728dee279c51f3cb6c716df7c42edf"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/vendor/leaflet/images/layers.png"
+sha256 = "1dbbe9d028e292f36fcba8f8b3a28d5e8932754fc2215b9ac69e4cdecf5107c6"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/vendor/leaflet/images/marker-icon-2x.png"
+sha256 = "00179c4c1ee830d3a108412ae0d294f55776cfeb085c60129a39aa6fc4ae2528"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/vendor/leaflet/images/marker-icon.png"
+sha256 = "574c3a5cca85f4114085b6841596d62f00d7c892c7b03f28cbfa301deb1dc437"
+visual_reviewed = true
+metadata_reviewed = true
+
+[[images]]
+path = "web/public/vendor/leaflet/images/marker-shadow.png"
+sha256 = "264f5c640339f042dd729062cfc04c17f8ea0f29882b538e3848ed8f10edb4da"
+visual_reviewed = true
+metadata_reviewed = true
